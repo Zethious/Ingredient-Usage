@@ -91,10 +91,6 @@
       border:1px solid rgba(110,231,255,.35);
       background: linear-gradient(135deg, rgba(110,231,255,.18), rgba(167,139,250,.14));
     }
-    button:disabled{
-      opacity:.45;
-      cursor:not-allowed;
-    }
 
     .stats{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}
     .stat{
@@ -158,6 +154,7 @@
     .note{margin-top:10px;color:var(--muted);font-size:12px;line-height:1.45}
     .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;}
     .err{color:#ffd0da}
+    .ok{color:#caffe8}
   </style>
 </head>
 
@@ -170,24 +167,27 @@
       </div>
       <div class="pill">
         <span class="dot" id="libDot"></span>
-        <span id="libText">Loading SheetJS…</span>
+        <span id="libText">XLSX support: checking…</span>
       </div>
     </header>
 
     <div class="card">
       <h2>Upload Weekly Sales</h2>
-      <p>Sales export must contain: <span class="mono">Date</span>, <span class="mono">GTIN</span>, <span class="mono">QS</span>. Then click Run.</p>
+      <p>
+        Upload <b>.csv</b> (recommended) or <b>.xlsx</b> (only if SheetJS is available).
+        Required columns: <span class="mono">Date</span>, <span class="mono">GTIN</span>, <span class="mono">QS</span>.
+      </p>
 
       <div class="uploader">
         <div class="left">
-          <div class="label">Sales report (.xlsx)</div>
-          <div class="hint">Tip: if totals look low, check “Top undefined items”.</div>
+          <div class="label">Sales report (.csv or .xlsx)</div>
+          <div class="hint">If your network blocks libraries, CSV will always work.</div>
         </div>
-        <input type="file" id="salesFile" accept=".xlsx"/>
+        <input type="file" id="salesFile" accept=".csv,.xlsx"/>
       </div>
 
       <div class="btns">
-        <button class="primary" id="runBtn" disabled>Run report</button>
+        <button class="primary" id="runBtn">Run report</button>
         <button id="downloadCsv" disabled>Download ingredient CSV</button>
       </div>
 
@@ -197,7 +197,7 @@
         <div class="stat"><div class="k">Undefined items</div><div class="v" id="undefCount">—</div></div>
       </div>
 
-      <div class="note" id="runNote">Waiting for SheetJS…</div>
+      <div class="note" id="runNote">Choose a file, then click Run.</div>
       <div class="note" id="debugNote"></div>
     </div>
 
@@ -223,9 +223,10 @@
   </div>
 
 <script>
-/* ==========================
-   1) SheetJS loader (fallbacks)
-   ========================== */
+/* ============================================================
+   OPTIONAL: SheetJS loader (CDN) — might be blocked in your env.
+   If blocked, .xlsx uploads won’t work, but CSV uploads will.
+   ============================================================ */
 const LIB_URLS = [
   "https://cdn.jsdelivr.net/npm/xlsx@0.19.3/dist/xlsx.full.min.js",
   "https://unpkg.com/xlsx@0.19.3/dist/xlsx.full.min.js",
@@ -234,16 +235,17 @@ const LIB_URLS = [
 
 const libDot = document.getElementById("libDot");
 const libText = document.getElementById("libText");
+const runNote = document.getElementById("runNote");
+const debugNote = document.getElementById("debugNote");
 const runBtn = document.getElementById("runBtn");
 const downloadBtn = document.getElementById("downloadCsv");
-const runNote = document.getElementById("runNote");
+const salesInput = document.getElementById("salesFile");
 
 function setLibStatus(state, text){
   libDot.classList.toggle("good", state==="good");
   libDot.classList.toggle("bad", state==="bad");
   libText.textContent = text;
 }
-
 function loadScript(src){
   return new Promise((resolve, reject)=>{
     const s = document.createElement("script");
@@ -254,28 +256,24 @@ function loadScript(src){
     document.head.appendChild(s);
   });
 }
-
-async function ensureXLSX(){
-  if (window.XLSX) return { ok:true, from:"already" };
-
+async function tryLoadXLSX(){
+  if (window.XLSX) return true;
   for (const url of LIB_URLS){
     try{
       await loadScript(url);
-      if (window.XLSX) return { ok:true, from:url };
-    }catch(e){
-      // keep trying next url
-    }
+      if (window.XLSX) return true;
+    }catch(e){}
   }
-  return { ok:false, from:null };
+  return false;
 }
 
-/* ==========================
-   2) Embedded master (placeholder core)
-   Replace/expand later with your full master
-   ========================== */
+/* ============================================================
+   ✅ EMBEDDED MASTER (CURRENT DEFAULTS - CORE DEMO)
+   Replace/expand with full master later.
+   ============================================================ */
 const MASTER_DATA = {
   Items: [
-    // NOTE: These are placeholders; your real master will have numeric GTINs.
+    // Replace these symbolic GTINs with your real numeric GTINs in your full master
     { item_id:"PINEAPPLE_18", item_name:"Pineapple 18oz", upc_gtin:"PINEAPPLE_18" },
     { item_id:"WATERMELON_18", item_name:"Watermelon 18oz", upc_gtin:"WATERMELON_18" },
     { item_id:"MIXED_18", item_name:"Mixed Fruit 18oz", upc_gtin:"MIXED_18" }
@@ -292,6 +290,9 @@ const MASTER_DATA = {
   ]
 };
 
+/* ============================================================
+   Helpers
+   ============================================================ */
 function normalizeUpc(v){
   if (v===null || v===undefined) return "";
   let s = String(v).trim().replace(/\.0+$/,"");
@@ -341,28 +342,6 @@ function buildMaster(data){
 }
 const master = buildMaster(MASTER_DATA);
 
-/* ==========================
-   3) UI: tabs + tables
-   ========================== */
-const rowsLoaded = document.getElementById("rowsLoaded");
-const itemsMatched = document.getElementById("itemsMatched");
-const undefCount = document.getElementById("undefCount");
-const resultsBadge = document.getElementById("resultsBadge");
-const debugNote = document.getElementById("debugNote");
-const salesInput = document.getElementById("salesFile");
-let lastIngredientRows = [];
-
-document.querySelectorAll(".tab").forEach(t=>{
-  t.addEventListener("click",()=>{
-    document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));
-    t.classList.add("active");
-    const tab=t.dataset.tab;
-    ["ingredients","undefined"].forEach(n=>{
-      document.getElementById("tab-"+n).style.display=(n===tab)?"block":"none";
-    });
-  });
-});
-
 function renderTable(containerId, cols, rows, maxRows=200){
   const el=document.getElementById(containerId);
   if(!rows || rows.length===0){
@@ -390,7 +369,6 @@ function renderTable(containerId, cols, rows, maxRows=200){
   }
   el.innerHTML=html;
 }
-
 function downloadText(filename, text){
   const blob = new Blob([text], {type:"text/plain;charset=utf-8"});
   const url = URL.createObjectURL(blob);
@@ -401,7 +379,6 @@ function downloadText(filename, text){
   a.remove();
   URL.revokeObjectURL(url);
 }
-
 function findHeaderKey(obj, candidates){
   const keys = Object.keys(obj || {});
   const lower = new Map(keys.map(k => [k.toLowerCase().trim(), k]));
@@ -411,31 +388,10 @@ function findHeaderKey(obj, candidates){
   }
   return null;
 }
-
-function parseSalesRows(wb){
-  let bestSheet = wb.SheetNames[0];
-  let bestScore = -1;
-
-  for(const name of wb.SheetNames){
-    const rows = XLSX.utils.sheet_to_json(wb.Sheets[name], {defval:""});
-    const sample = rows[0] || {};
-    const gtinKey = findHeaderKey(sample, ["GTIN","UPC","UPC/GTIN","upc_gtin"]);
-    const qsKey   = findHeaderKey(sample, ["QS","Qty","Quantity","Units"]);
-    const score = (gtinKey?1:0) + (qsKey?1:0);
-    if(score > bestScore){
-      bestScore = score;
-      bestSheet = name;
-    }
-  }
-  const rows = XLSX.utils.sheet_to_json(wb.Sheets[bestSheet], {defval:""});
-  return { sheetName: bestSheet, rows };
-}
-
 function pickBestItem(upc, salesName){
   const candidates = master.itemByUpc.get(upc) || [];
   if(candidates.length===0) return null;
   if(candidates.length===1) return candidates[0];
-
   const s=(salesName||"").trim().toLowerCase();
   let best=candidates[0], bestScore=-1;
   for(const c of candidates){
@@ -455,126 +411,232 @@ function pickBestItem(upc, salesName){
   return best;
 }
 
+/* ============================================================
+   CSV Parser (no external libs)
+   Handles commas + quotes + newlines in quotes.
+   ============================================================ */
+function parseCSV(text){
+  const rows = [];
+  let row = [];
+  let cur = "";
+  let i = 0;
+  let inQuotes = false;
+
+  while (i < text.length){
+    const ch = text[i];
+
+    if (inQuotes){
+      if (ch === '"'){
+        const next = text[i+1];
+        if (next === '"'){ cur += '"'; i += 2; continue; }
+        inQuotes = false; i++; continue;
+      } else {
+        cur += ch; i++; continue;
+      }
+    } else {
+      if (ch === '"'){ inQuotes = true; i++; continue; }
+      if (ch === ','){ row.push(cur); cur=""; i++; continue; }
+      if (ch === '\r'){
+        // ignore, handle on \n
+        i++; continue;
+      }
+      if (ch === '\n'){
+        row.push(cur); cur="";
+        rows.push(row);
+        row = [];
+        i++; continue;
+      }
+      cur += ch; i++; continue;
+    }
+  }
+  // last cell
+  row.push(cur);
+  if (row.length > 1 || row[0] !== "") rows.push(row);
+
+  const header = (rows[0] || []).map(h => String(h||"").trim());
+  const out = [];
+  for (let r=1; r<rows.length; r++){
+    const obj = {};
+    const arr = rows[r];
+    for (let c=0; c<header.length; c++){
+      obj[header[c]] = arr[c] ?? "";
+    }
+    // skip fully empty rows
+    if (Object.values(obj).some(v => String(v).trim() !== "")) out.push(obj);
+  }
+  return out;
+}
+
+/* ============================================================
+   Reading sales file (.csv always works; .xlsx requires XLSX)
+   ============================================================ */
+async function readSalesFile(file){
+  const name = (file.name||"").toLowerCase();
+  if (name.endsWith(".csv")){
+    const text = await file.text();
+    return { format:"csv", rows: parseCSV(text), sheetName:"(csv)" };
+  }
+
+  if (name.endsWith(".xlsx")){
+    if (!window.XLSX){
+      return { format:"xlsx", error: "XLSX parsing is blocked on this network. Please upload CSV instead." };
+    }
+    const buf = await file.arrayBuffer();
+    const wb = XLSX.read(buf, {type:"array"});
+    // pick sheet that has GTIN + QS
+    let bestSheet = wb.SheetNames[0];
+    let bestScore = -1;
+
+    for (const sname of wb.SheetNames){
+      const rows = XLSX.utils.sheet_to_json(wb.Sheets[sname], {defval:""});
+      const sample = rows[0] || {};
+      const gtinKey = findHeaderKey(sample, ["GTIN","gtin","UPC","UPC/GTIN","upc_gtin"]);
+      const qsKey   = findHeaderKey(sample, ["QS","qs","Qty","Quantity","Units"]);
+      const score = (gtinKey?1:0) + (qsKey?1:0);
+      if (score > bestScore){ bestScore = score; bestSheet = sname; }
+    }
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets[bestSheet], {defval:""});
+    return { format:"xlsx", rows, sheetName: bestSheet };
+  }
+
+  return { error: "Unsupported file type. Upload .csv or .xlsx" };
+}
+
+/* ============================================================
+   Compute report
+   ============================================================ */
+const rowsLoaded = document.getElementById("rowsLoaded");
+const itemsMatched = document.getElementById("itemsMatched");
+const undefCount = document.getElementById("undefCount");
+const resultsBadge = document.getElementById("resultsBadge");
+let lastIngredientRows = [];
+
+document.querySelectorAll(".tab").forEach(t=>{
+  t.addEventListener("click",()=>{
+    document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));
+    t.classList.add("active");
+    const tab=t.dataset.tab;
+    ["ingredients","undefined"].forEach(n=>{
+      document.getElementById("tab-"+n).style.display=(n===tab)?"block":"none";
+    });
+  });
+});
+
 salesInput.addEventListener("change", () => {
   const file = salesInput.files?.[0];
   if(file) runNote.textContent = `Selected: ${file.name}. Click “Run report”.`;
 });
 
 async function runReport(){
+  debugNote.textContent = "";
   const file = salesInput.files?.[0];
   if(!file){
     runNote.textContent = "Upload a sales report first.";
     return;
   }
-  if(!window.XLSX){
-    runNote.innerHTML = `<span class="err">SheetJS is not loaded yet. Check your network/ad blocker.</span>`;
+
+  const sales = await readSalesFile(file);
+  if (sales.error){
+    runNote.innerHTML = `<span class="err">${sales.error}</span><br/>
+      <span class="mono">Quick fix:</span> open the .xlsx → Save As → <b>CSV</b> → upload the CSV here.`;
     return;
   }
 
-  try{
-    const buf = await file.arrayBuffer();
-    const wb = XLSX.read(buf, {type:"array"});
-    const { sheetName, rows } = parseSalesRows(wb);
+  const rows = sales.rows || [];
+  rowsLoaded.textContent = String(rows.length);
+  debugNote.innerHTML = `Loaded <span class="mono">${sales.format.toUpperCase()}</span> • Sheet: <span class="mono">${sales.sheetName}</span>`;
 
-    rowsLoaded.textContent = String(rows.length);
-    debugNote.innerHTML = `Using sheet: <span class="mono">${sheetName}</span>`;
+  const sample = rows[0] || {};
+  const gtinKey = findHeaderKey(sample, ["GTIN","gtin","UPC","UPC/GTIN","upc_gtin"]);
+  const qsKey   = findHeaderKey(sample, ["QS","qs","Qty","Quantity","Units"]);
+  const nameKey = findHeaderKey(sample, ["Product name","Product Name","Item","Item Name","Description"]);
 
-    const sample = rows[0] || {};
-    const gtinKey = findHeaderKey(sample, ["GTIN","UPC","UPC/GTIN","upc_gtin"]);
-    const qsKey   = findHeaderKey(sample, ["QS","Qty","Quantity","Units"]);
-    const nameKey = findHeaderKey(sample, ["Product name","Product Name","Item","Item Name","Description"]);
-
-    if(!gtinKey || !qsKey){
-      runNote.innerHTML = `<span class="err">Could not find required columns. Need GTIN + QS.</span>`;
-      return;
-    }
-
-    const byUpc = new Map();
-    for(const r of rows){
-      const upc = normalizeUpc(r[gtinKey]);
-      if(!upc) continue;
-      const units = toNum(r[qsKey]);
-      const name = nameKey ? String(r[nameKey]||"") : "";
-      if(!byUpc.has(upc)) byUpc.set(upc, { upc, units:0, name });
-      byUpc.get(upc).units += units;
-      if(name && !byUpc.get(upc).name) byUpc.get(upc).name = name;
-    }
-
-    let matched = 0;
-    const undefinedItems = [];
-    const ingTotals = new Map();
-
-    for(const row of byUpc.values()){
-      const item = pickBestItem(row.upc, row.name);
-      if(!item){
-        undefinedItems.push({ name: row.name||"(unknown)", upc: row.upc, units: row.units, reason:"Not in master" });
-        continue;
-      }
-      matched++;
-
-      const recipe = master.recipeByItem.get(item.item_id) || [];
-      const usable = recipe.filter(x => x.ingredient_id && Number.isFinite(x.ingredient_oz) && x.ingredient_oz>0);
-      if(usable.length===0){
-        undefinedItems.push({ name: item.item_name||row.name, upc: row.upc, units: row.units, reason:"No recipe" });
-        continue;
-      }
-
-      for(const line of usable){
-        const oz = row.units * line.ingredient_oz;
-        ingTotals.set(line.ingredient_id, (ingTotals.get(line.ingredient_id)||0) + oz);
-      }
-    }
-
-    itemsMatched.textContent = String(matched);
-    undefCount.textContent = String(undefinedItems.length);
-
-    const ingRows = [];
-    for(const [iid, oz] of ingTotals.entries()){
-      const info = master.ingById.get(iid);
-      const caseOz = info?.edible_oz_per_case;
-      const exact = (Number.isFinite(caseOz) && caseOz>0) ? oz / caseOz : NaN;
-      ingRows.push({
-        ingredient_name: info?.ingredient_name || iid,
-        total_oz: oz,
-        edible_oz_per_case: caseOz,
-        cases_exact: exact,
-        cases_rounded: Number.isFinite(exact) ? Math.ceil(exact) : ""
-      });
-    }
-    ingRows.sort((a,b)=>(b.cases_exact||0)-(a.cases_exact||0));
-    lastIngredientRows = ingRows;
-
-    undefinedItems.sort((a,b)=>b.units-a.units);
-
-    const badgeType = undefinedItems.length===0 ? "good" : (undefinedItems.length<10 ? "warn" : "bad");
-    resultsBadge.className = "badge " + badgeType;
-    resultsBadge.textContent = `Computed ${ingRows.length} ingredients • Undefined: ${undefinedItems.length}`;
-
-    renderTable("tab-ingredients",[
-      {key:"ingredient_name",label:"Ingredient"},
-      {key:"total_oz",label:"Total oz",align:"right",format:v=>fmt(v,0)},
-      {key:"edible_oz_per_case",label:"Edible oz/case",align:"right",format:v=>fmt(v,0)},
-      {key:"cases_exact",label:"Cases (exact)",align:"right",format:v=>fmt(v,3)},
-      {key:"cases_rounded",label:"Cases (rounded)",align:"right",format:v=>fmt(v,0)}
-    ], ingRows, 250);
-
-    renderTable("tab-undefined",[
-      {key:"name",label:"Product"},
-      {key:"upc",label:"GTIN"},
-      {key:"units",label:"Units sold",align:"right",format:v=>fmt(v,0)},
-      {key:"reason",label:"Why missing"}
-    ], undefinedItems, 80);
-
-    runNote.innerHTML = (undefinedItems.length>0)
-      ? `Computed results, but <b>${undefinedItems.length}</b> items are undefined and contribute <b>0</b> until recipes exist.`
-      : `Computed results successfully.`;
-
-    downloadBtn.disabled = false;
-
-  }catch(err){
-    console.error(err);
-    runNote.innerHTML = `<span class="err">Failed to read sales file: ${String(err.message||err)}</span>`;
+  if(!gtinKey || !qsKey){
+    runNote.innerHTML = `<span class="err">Could not find required columns. Need GTIN + QS.</span>`;
+    return;
   }
+
+  const byUpc = new Map();
+  for(const r of rows){
+    const upc = normalizeUpc(r[gtinKey]);
+    if(!upc) continue;
+    const units = toNum(r[qsKey]);
+    const name = nameKey ? String(r[nameKey]||"") : "";
+    if(!byUpc.has(upc)) byUpc.set(upc, { upc, units:0, name });
+    byUpc.get(upc).units += units;
+    if(name && !byUpc.get(upc).name) byUpc.get(upc).name = name;
+  }
+
+  let matched = 0;
+  const undefinedItems = [];
+  const ingTotals = new Map();
+
+  for(const row of byUpc.values()){
+    const item = pickBestItem(row.upc, row.name);
+    if(!item){
+      undefinedItems.push({ name: row.name||"(unknown)", upc: row.upc, units: row.units, reason:"Not in master" });
+      continue;
+    }
+    matched++;
+
+    const recipe = master.recipeByItem.get(item.item_id) || [];
+    const usable = recipe.filter(x => x.ingredient_id && Number.isFinite(x.ingredient_oz) && x.ingredient_oz>0);
+    if(usable.length===0){
+      undefinedItems.push({ name: item.item_name||row.name, upc: row.upc, units: row.units, reason:"No recipe" });
+      continue;
+    }
+
+    for(const line of usable){
+      const oz = row.units * line.ingredient_oz;
+      ingTotals.set(line.ingredient_id, (ingTotals.get(line.ingredient_id)||0) + oz);
+    }
+  }
+
+  itemsMatched.textContent = String(matched);
+  undefCount.textContent = String(undefinedItems.length);
+
+  const ingRows = [];
+  for(const [iid, oz] of ingTotals.entries()){
+    const info = master.ingById.get(iid);
+    const caseOz = info?.edible_oz_per_case;
+    const exact = (Number.isFinite(caseOz) && caseOz>0) ? oz / caseOz : NaN;
+    ingRows.push({
+      ingredient_name: info?.ingredient_name || iid,
+      total_oz: oz,
+      edible_oz_per_case: caseOz,
+      cases_exact: exact,
+      cases_rounded: Number.isFinite(exact) ? Math.ceil(exact) : ""
+    });
+  }
+  ingRows.sort((a,b)=>(b.cases_exact||0)-(a.cases_exact||0));
+  lastIngredientRows = ingRows;
+
+  undefinedItems.sort((a,b)=>b.units-a.units);
+
+  const badgeType = undefinedItems.length===0 ? "good" : (undefinedItems.length<10 ? "warn" : "bad");
+  resultsBadge.className = "badge " + badgeType;
+  resultsBadge.textContent = `Computed ${ingRows.length} ingredients • Undefined: ${undefinedItems.length}`;
+
+  renderTable("tab-ingredients",[
+    {key:"ingredient_name",label:"Ingredient"},
+    {key:"total_oz",label:"Total oz",align:"right",format:v=>fmt(v,0)},
+    {key:"edible_oz_per_case",label:"Edible oz/case",align:"right",format:v=>fmt(v,0)},
+    {key:"cases_exact",label:"Cases (exact)",align:"right",format:v=>fmt(v,3)},
+    {key:"cases_rounded",label:"Cases (rounded)",align:"right",format:v=>fmt(v,0)}
+  ], ingRows, 250);
+
+  renderTable("tab-undefined",[
+    {key:"name",label:"Product"},
+    {key:"upc",label:"GTIN"},
+    {key:"units",label:"Units sold",align:"right",format:v=>fmt(v,0)},
+    {key:"reason",label:"Why missing"}
+  ], undefinedItems, 80);
+
+  runNote.innerHTML = (undefinedItems.length>0)
+    ? `Computed results, but <b>${undefinedItems.length}</b> items are undefined and contribute <b>0</b> until recipes exist.`
+    : `<span class="ok">Computed results successfully.</span>`;
+
+  downloadBtn.disabled = ingRows.length===0;
 }
 
 runBtn.addEventListener("click", runReport);
@@ -596,26 +658,21 @@ downloadBtn.addEventListener("click", ()=>{
     ];
     lines.push(row.join(","));
   }
-  downloadText("ingredient_cases_used.csv", lines.join("\\n"));
+  downloadText("ingredient_cases_used.csv", lines.join("\n"));
 });
 
-/* ==========================
-   4) Boot: load XLSX then enable Run
-   ========================== */
+/* ============================================================
+   Boot: attempt XLSX support (may fail)
+   ============================================================ */
 (async function boot(){
-  setLibStatus("warn", "Loading SheetJS…");
-  const res = await ensureXLSX();
-  if(res.ok){
-    setLibStatus("good", "SheetJS: ready");
-    runBtn.disabled = false;
-    runNote.textContent = "Choose a file, then click Run.";
+  const ok = await tryLoadXLSX();
+  if(ok){
+    setLibStatus("good", "XLSX support: available");
   }else{
-    setLibStatus("bad", "SheetJS: failed");
-    runBtn.disabled = true;
-    downloadBtn.disabled = true;
+    setLibStatus("bad", "XLSX support: blocked");
+    // Still works with CSV
     runNote.innerHTML =
-      `<span class="err">SheetJS failed to load. Your network/ad blocker may be blocking CDNs.</span><br/>
-       Try: disable ad blocker for this site, or run it on a different network.`;
+      `<span class="err">Your network blocks XLSX parsing libraries.</span> No problem — upload <b>CSV</b> instead.`;
   }
 })();
 </script>
