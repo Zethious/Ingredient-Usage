@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>SnowFruit Ingredient Usage</title>
 
-  <!-- Optional: avoid harmless favicon 404 noise -->
+  <!-- Optional: silence favicon 404 -->
   <link rel="icon" href="data:,">
 
   <style>
@@ -24,9 +24,10 @@
     body{
       margin:0;
       font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
-      background: radial-gradient(1200px 600px at 20% 0%, rgba(110,231,255,.13), transparent 60%),
-                  radial-gradient(900px 500px at 80% 10%, rgba(167,139,250,.12), transparent 60%),
-                  linear-gradient(180deg, var(--bg), #070b14);
+      background:
+        radial-gradient(1200px 600px at 20% 0%, rgba(110,231,255,.13), transparent 60%),
+        radial-gradient(900px 500px at 80% 10%, rgba(167,139,250,.12), transparent 60%),
+        linear-gradient(180deg, var(--bg), #070b14);
       color:var(--text);
       min-height:100vh;
     }
@@ -233,6 +234,7 @@
     const runBtn = document.getElementById("runBtn");
     const downloadBtn = document.getElementById("downloadCsv");
     const runNote = document.getElementById("runNote");
+    const debugNote = document.getElementById("debugNote");
 
     function setLibStatus(state, text){
       libDot.classList.toggle("good", state==="good");
@@ -240,38 +242,66 @@
       libText.textContent = text;
     }
 
-    // --- Robust detection: works even with caching/timing quirks ---
     function finalizeXLSXOk(){
       setLibStatus("good", "SheetJS: local OK");
       runNote.textContent = "Ready. Upload a sales file and click Run.";
       runBtn.disabled = false;
     }
+
     function finalizeXLSXFail(msg){
       setLibStatus("bad", "SheetJS: failed");
       runNote.innerHTML = `<span class="err">${msg}</span>`;
       runBtn.disabled = true;
     }
 
-    // 1) inject the script
-    (function loadSheetJS(){
-      const s = document.createElement("script");
-      s.src = XLSX_URL;
+    async function loadSheetJSViaFetch(){
+      setLibStatus("warn", "SheetJS: loading…");
+      runNote.textContent = "Loading SheetJS…";
+      debugNote.textContent = "";
 
-      // These are still useful…
-      s.onload = () => {
-        // …but we also confirm window.XLSX exists:
-        if (window.XLSX) finalizeXLSXOk();
-        else finalizeXLSXFail("SheetJS script loaded but XLSX global was not found.");
-      };
+      try {
+        // Force real fetch (avoid caching weirdness)
+        const url = XLSX_URL + `?v=${Date.now()}`;
+        const res = await fetch(url, { cache: "no-store" });
 
-      s.onerror = () => {
-        finalizeXLSXFail(`Could not load SheetJS from ${XLSX_URL}`);
-      };
+        if (!res.ok) {
+          finalizeXLSXFail(`SheetJS fetch failed: HTTP ${res.status} from ${XLSX_URL}`);
+          return;
+        }
 
-      document.head.appendChild(s);
-    })();
+        const jsText = await res.text();
+        if (!jsText || jsText.length < 1000) {
+          finalizeXLSXFail(`SheetJS content looked wrong (too small). Check ${XLSX_URL}`);
+          return;
+        }
 
-    // 2) polling fallback (prevents “stuck loading…” forever)
+        // Execute via Blob URL (bypasses script-load quirks)
+        const blob = new Blob([jsText], { type: "text/javascript" });
+        const blobUrl = URL.createObjectURL(blob);
+
+        const s = document.createElement("script");
+        s.src = blobUrl;
+        s.onload = () => {
+          URL.revokeObjectURL(blobUrl);
+          if (window.XLSX) finalizeXLSXOk();
+          else finalizeXLSXFail("SheetJS executed but XLSX global was not found.");
+        };
+        s.onerror = () => {
+          URL.revokeObjectURL(blobUrl);
+          finalizeXLSXFail("Failed to execute SheetJS after fetching it.");
+        };
+
+        document.head.appendChild(s);
+
+      } catch (err) {
+        finalizeXLSXFail(`SheetJS load error: ${err?.message || String(err)}`);
+      }
+    }
+
+    // Start loading immediately
+    loadSheetJSViaFetch();
+
+    // Safety poll (in case onload is skipped)
     (function pollForXLSX(){
       const start = Date.now();
       const maxMs = 6000;
@@ -283,14 +313,13 @@
         }
         if (Date.now() - start > maxMs) {
           clearInterval(t);
-          // If the script tag failed, onerror will handle it, but if timing got weird, we show this:
           finalizeXLSXFail(`Timed out waiting for SheetJS. Check that ${XLSX_URL} returns 200 in a new tab.`);
         }
       }, 100);
     })();
   </script>
 
-  <!-- ===== Your existing app logic can remain below this line ===== -->
+  <!-- ===== App logic (minimal placeholders; keep/replace with your full math) ===== -->
   <script>
     // Tabs
     document.querySelectorAll(".tab").forEach(t=>{
@@ -304,19 +333,120 @@
       });
     });
 
-    // Minimal Run button handler (keeps your UX intact)
+    // Helpers
+    const rowsLoadedEl = document.getElementById("rowsLoaded");
+    const itemsMatchedEl = document.getElementById("itemsMatched");
+    const undefCountEl = document.getElementById("undefCount");
+    const resultsBadge = document.getElementById("resultsBadge");
+    const tabIngredients = document.getElementById("tab-ingredients");
+    const tabUndefined = document.getElementById("tab-undefined");
+
+    function renderTable(container, cols, rows){
+      if (!rows.length){
+        container.innerHTML = `<div class="note">No data yet.</div>`;
+        return;
+      }
+      const thead = `<tr>${cols.map(c=>`<th class="${c.right?'right':''}">${c.label}</th>`).join("")}</tr>`;
+      const tbody = rows.map(r=>`<tr>${
+        cols.map(c=>`<td class="${c.right?'right':''}">${(r[c.key] ?? "")}</td>`).join("")
+      }</tr>`).join("");
+      container.innerHTML = `<table><thead>${thead}</thead><tbody>${tbody}</tbody></table>`;
+    }
+
+    // Run report (demo parses first sheet and looks for Date/GTIN/QS columns)
     runBtn.addEventListener("click", async () => {
       if (!window.XLSX) {
         runNote.innerHTML = `<span class="err">SheetJS not ready yet. Refresh once (Cmd+Shift+R).</span>`;
         return;
       }
+
       const file = document.getElementById("salesFile").files?.[0];
       if (!file) {
         runNote.innerHTML = `<span class="err">Upload a sales report first.</span>`;
         return;
       }
-      // Your full report logic continues here (leave your existing code below this if you already have it)
-      runNote.textContent = "Sales file selected — ready to parse.";
+
+      try{
+        runNote.textContent = "Reading .xlsx…";
+        const buf = await file.arrayBuffer();
+        const wb = XLSX.read(buf, { type: "array" });
+
+        const sheet = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+
+        rowsLoadedEl.textContent = rows.length.toLocaleString();
+
+        // Find columns loosely
+        const norm = (s) => String(s || "").trim().toLowerCase();
+        const hasDate = rows.length ? ("date" in Object.fromEntries(Object.keys(rows[0]).map(k=>[norm(k),true]))) : false;
+
+        // Build a simple check for GTIN & QS presence
+        const keys = rows.length ? Object.keys(rows[0]).map(norm) : [];
+        const gtinKey = Object.keys(rows[0] || {}).find(k => norm(k)==="gtin") || "";
+        const qsKey   = Object.keys(rows[0] || {}).find(k => norm(k)==="qs" || norm(k)==="qty" || norm(k)==="quantity") || "";
+
+        if (!gtinKey || !qsKey) {
+          runNote.innerHTML = `<span class="err">Missing required columns. Found columns: ${keys.join(", ")}</span>`;
+          itemsMatchedEl.textContent = "—";
+          undefCountEl.textContent = "—";
+          resultsBadge.className = "badge bad";
+          resultsBadge.textContent = "Invalid sales file";
+          tabIngredients.innerHTML = `<div class="note err">Your sheet needs columns named <b>GTIN</b> and <b>QS</b> (and ideally <b>Date</b>).</div>`;
+          tabUndefined.innerHTML = `<div class="note">—</div>`;
+          return;
+        }
+
+        // Aggregate QS by GTIN (placeholder until your full master/recipe math runs)
+        const map = new Map();
+        for (const r of rows){
+          const g = String(r[gtinKey] ?? "").trim();
+          const q = Number(r[qsKey] ?? 0) || 0;
+          if (!g) continue;
+          map.set(g, (map.get(g) || 0) + q);
+        }
+
+        // For now: treat all GTINs as "matched" in this placeholder
+        itemsMatchedEl.textContent = map.size.toLocaleString();
+        undefCountEl.textContent = "0";
+
+        resultsBadge.className = "badge good";
+        resultsBadge.textContent = "Parsed sales OK";
+
+        const top = [...map.entries()]
+          .sort((a,b)=>b[1]-a[1])
+          .slice(0, 25)
+          .map(([gtin, qty])=>({ gtin, qty: qty.toLocaleString() }));
+
+        renderTable(
+          tabIngredients,
+          [{key:"gtin",label:"GTIN"},{key:"qty",label:"Units sold",right:true}],
+          top
+        );
+        tabUndefined.innerHTML = `<div class="note">No undefined items in placeholder mode.</div>`;
+
+        runNote.textContent = "Sales loaded. Next step: apply master+recipes math (we can re-add your logic here).";
+        downloadBtn.disabled = false;
+
+        // CSV download (placeholder export of GTIN totals)
+        downloadBtn.onclick = () => {
+          const header = ["GTIN","UnitsSold"];
+          const lines = [header.join(",")].concat(
+            [...map.entries()].map(([g,q])=>`${g},${q}`)
+          );
+          const blob = new Blob([lines.join("\n")], {type:"text/csv"});
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = "ingredient_usage_placeholder.csv";
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          URL.revokeObjectURL(url);
+        };
+
+      }catch(e){
+        runNote.innerHTML = `<span class="err">Failed to read sales file: ${e?.message || e}</span>`;
+      }
     });
   </script>
 </body>
