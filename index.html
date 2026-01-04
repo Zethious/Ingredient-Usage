@@ -2,452 +2,179 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>SnowFruit Ingredient Usage</title>
-
-  <!-- Optional: silence favicon 404 -->
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="icon" href="data:,">
 
+  <!-- ✅ LOCAL SheetJS (this is the fix) -->
+  <script src="./vendor/xlsx.full.min.js"></script>
+
   <style>
-    :root{
-      --bg:#0b1220;
-      --text:#eaf0ff;
-      --muted:#9fb0d0;
-      --border:rgba(255,255,255,.10);
-      --good:#34d399;
-      --warn:#fbbf24;
-      --bad:#fb7185;
-      --shadow: 0 14px 40px rgba(0,0,0,.35);
-      --radius: 18px;
-    }
-    *{box-sizing:border-box}
     body{
       margin:0;
-      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+      font-family: system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
       background:
         radial-gradient(1200px 600px at 20% 0%, rgba(110,231,255,.13), transparent 60%),
         radial-gradient(900px 500px at 80% 10%, rgba(167,139,250,.12), transparent 60%),
-        linear-gradient(180deg, var(--bg), #070b14);
-      color:var(--text);
-      min-height:100vh;
+        linear-gradient(180deg,#0b1220,#070b14);
+      color:#eaf0ff;
     }
-    .wrap{max-width:1100px;margin:0 auto;padding:28px 18px 60px}
-    header{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:18px;flex-wrap:wrap}
-    h1{margin:0;font-size:32px;letter-spacing:.2px}
-    .sub{color:var(--muted);font-size:14px;line-height:1.35;margin-top:8px}
+    .wrap{max-width:1100px;margin:auto;padding:28px}
+    h1{margin:0;font-size:32px}
+    .sub{color:#9fb0d0;margin-top:6px}
 
     .pill{
-      display:inline-flex;align-items:center;gap:10px;
-      border:1px solid var(--border);
-      background:rgba(255,255,255,.04);
-      padding:10px 12px;border-radius:999px;
-      color:var(--muted);font-size:13px;
+      float:right;
+      border:1px solid rgba(255,255,255,.15);
+      padding:8px 12px;
+      border-radius:999px;
+      font-size:13px;
+      background:rgba(255,255,255,.05)
     }
-    .dot{width:9px;height:9px;border-radius:999px;background:var(--warn)}
-    .dot.good{background:var(--good)}
-    .dot.bad{background:var(--bad)}
 
     .card{
-      background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
+      margin-top:18px;
+      background:rgba(255,255,255,.06);
+      border:1px solid rgba(255,255,255,.12);
+      border-radius:18px;
       padding:18px;
-      box-shadow: var(--shadow);
-      margin-top:14px;
     }
-    .card h2{margin:0 0 8px;font-size:16px}
-    .card p{margin:0;color:var(--muted);font-size:13px;line-height:1.45}
 
-    .uploader{
-      margin-top:12px;
-      border: 1px dashed rgba(255,255,255,.25);
-      border-radius: 14px;
-      background: rgba(255,255,255,.03);
+    .upload{
+      border:1px dashed rgba(255,255,255,.35);
+      border-radius:14px;
       padding:14px;
+      margin-top:12px;
+    }
+
+    button{
+      margin-top:12px;
+      padding:10px 16px;
+      border-radius:12px;
+      border:1px solid rgba(110,231,255,.45);
+      background:rgba(110,231,255,.18);
+      color:white;
+      font-weight:700;
+      cursor:pointer;
+    }
+
+    button:disabled{opacity:.4}
+
+    .stats{
       display:flex;
       gap:12px;
-      align-items:center;
-      justify-content:space-between;
-      flex-wrap:wrap;
+      margin-top:12px;
     }
-    .uploader .left{display:flex;flex-direction:column;gap:6px}
-    .uploader .label{font-size:13px}
-    .uploader .hint{font-size:12px;color:var(--muted)}
-    input[type="file"]{color:var(--muted);max-width:100%}
-
-    .btns{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
-    button{
-      border:1px solid var(--border);
-      background: rgba(255,255,255,.06);
-      color:var(--text);
-      padding:10px 14px;
-      border-radius: 12px;
-      font-weight:800;
-      cursor:pointer;
-      transition: transform .06s ease, background .2s ease, border .2s ease, opacity .2s ease;
-      font-size:13px;
-    }
-    button:hover{background:rgba(255,255,255,.10)}
-    button:active{transform:translateY(1px)}
-    button.primary{
-      border:1px solid rgba(110,231,255,.35);
-      background: linear-gradient(135deg, rgba(110,231,255,.18), rgba(167,139,250,.14));
-    }
-    button:disabled{opacity:.45;cursor:not-allowed}
-
-    .stats{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}
     .stat{
-      border:1px solid var(--border);
-      background: rgba(0,0,0,.15);
-      padding:10px 12px;border-radius:14px;min-width:180px
+      flex:1;
+      background:rgba(0,0,0,.25);
+      border-radius:14px;
+      padding:12px;
     }
-    .stat .k{font-size:11px;color:var(--muted);margin-bottom:4px}
-    .stat .v{font-size:16px;font-weight:900}
-
-    .tabs{margin-top:16px;display:flex;gap:8px;flex-wrap:wrap}
-    .tab{
-      border:1px solid var(--border);
-      background: rgba(255,255,255,.04);
-      padding:8px 10px;border-radius:999px;
-      font-size:12px;color:var(--muted);
-      cursor:pointer;user-select:none;
-    }
-    .tab.active{
-      color:var(--text);
-      border-color: rgba(110,231,255,.35);
-      background: rgba(110,231,255,.10);
-    }
+    .k{font-size:12px;color:#9fb0d0}
+    .v{font-size:18px;font-weight:800}
 
     table{
       width:100%;
+      margin-top:14px;
       border-collapse:collapse;
-      margin-top:12px;
-      overflow:hidden;
-      border-radius: 14px;
-      border:1px solid var(--border);
-      background: rgba(0,0,0,.18);
     }
-    th, td{
-      padding:10px 10px;
-      border-bottom:1px solid rgba(255,255,255,.06);
-      font-size:12px;
+    th,td{
+      padding:10px;
+      border-bottom:1px solid rgba(255,255,255,.1);
       text-align:left;
     }
-    th{
-      color:#cfe0ff;
-      font-size:11px;
-      letter-spacing:.5px;
-      text-transform:uppercase;
-      background: rgba(255,255,255,.04);
-    }
-    tr:hover td{background: rgba(255,255,255,.03)}
-    .right{text-align:right}
-
-    .badge{
-      display:inline-flex;align-items:center;gap:6px;
-      font-size:11px;padding:5px 8px;border-radius:999px;
-      border:1px solid var(--border);
-      background: rgba(255,255,255,.04);
-      color:var(--muted);
-    }
-    .badge.good{border-color:rgba(52,211,153,.35);background:rgba(52,211,153,.12);color:#caffe8}
-    .badge.warn{border-color:rgba(251,191,36,.35);background:rgba(251,191,36,.12);color:#ffe8b0}
-    .badge.bad{border-color:rgba(251,113,133,.35);background:rgba(251,113,133,.12);color:#ffd0da}
-
-    .note{margin-top:10px;color:var(--muted);font-size:12px;line-height:1.45}
-    .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;}
-    .err{color:#ffd0da}
-    .ok{color:#caffe8}
+    th{color:#cfe0ff;font-size:12px}
   </style>
 </head>
 
 <body>
-  <div class="wrap">
-    <header>
-      <div>
-        <h1>SnowFruit Ingredient Usage</h1>
-        <div class="sub">Master is built-in. Upload your weekly sales report (.xlsx) and click Run.</div>
-      </div>
+<div class="wrap">
 
-      <div class="pill">
-        <span class="dot" id="libDot"></span>
-        <span id="libText">SheetJS: loading…</span>
-      </div>
-    </header>
+  <div class="pill" id="statusPill">SheetJS: checking…</div>
+  <h1>SnowFruit Ingredient Usage</h1>
+  <div class="sub">Master is built-in. Upload your weekly sales report (.xlsx) and click Run.</div>
 
-    <div class="card">
-      <h2>Upload Weekly Sales</h2>
-      <p>Required columns: <span class="mono">Date</span>, <span class="mono">GTIN</span>, <span class="mono">QS</span>. Then click Run.</p>
+  <div class="card">
+    <h3>Upload Weekly Sales</h3>
+    <div class="sub">Required columns: Date, GTIN, QS</div>
 
-      <div class="uploader">
-        <div class="left">
-          <div class="label">Sales report (.xlsx)</div>
-          <div class="hint">XLSX parsing loads from your site (no CDNs): <span class="mono" id="xlsxPathText">…</span></div>
-        </div>
-        <input type="file" id="salesFile" accept=".xlsx"/>
-      </div>
-
-      <div class="btns">
-        <button class="primary" id="runBtn" disabled>Run report</button>
-        <button id="downloadCsv" disabled>Download ingredient CSV</button>
-      </div>
-
-      <div class="stats">
-        <div class="stat"><div class="k">Sales rows loaded</div><div class="v" id="rowsLoaded">—</div></div>
-        <div class="stat"><div class="k">Items matched</div><div class="v" id="itemsMatched">—</div></div>
-        <div class="stat"><div class="k">Undefined items</div><div class="v" id="undefCount">—</div></div>
-      </div>
-
-      <div class="note" id="runNote">Loading SheetJS…</div>
-      <div class="note" id="debugNote"></div>
+    <div class="upload">
+      <input type="file" id="file" accept=".xlsx">
     </div>
 
-    <div class="card">
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
-        <div>
-          <h2 style="margin:0 0 4px">Results</h2>
-          <p style="margin:0">Ingredient totals + biggest missing items.</p>
-        </div>
-        <span class="badge" id="resultsBadge">No results yet</span>
-      </div>
+    <button id="runBtn" disabled>Run report</button>
 
-      <div class="tabs">
-        <div class="tab active" data-tab="ingredients">Ingredient cases used</div>
-        <div class="tab" data-tab="undefined">Top undefined items</div>
-      </div>
-
-      <div id="tab-ingredients"></div>
-      <div id="tab-undefined" style="display:none"></div>
-
-      <div class="note">Undefined items contribute <b>0</b> until their recipes exist.</div>
+    <div class="stats">
+      <div class="stat"><div class="k">Sales rows loaded</div><div class="v" id="rows">—</div></div>
+      <div class="stat"><div class="k">Items matched</div><div class="v" id="matched">—</div></div>
+      <div class="stat"><div class="k">Undefined items</div><div class="v" id="undef">—</div></div>
     </div>
+
+    <div class="sub" id="note">Waiting for SheetJS…</div>
   </div>
 
-  <script>
-    // ✅ If you ever rename the repo, update this ONE value:
-    const REPO_BASE = "/Ingredient-Usage";
-    const XLSX_URL = `${REPO_BASE}/vendor/xlsx.full.min.js`;
-    document.getElementById("xlsxPathText").textContent = XLSX_URL;
+  <div class="card">
+    <h3>Results</h3>
+    <div id="results">No results yet</div>
+  </div>
 
-    const libDot = document.getElementById("libDot");
-    const libText = document.getElementById("libText");
-    const runBtn = document.getElementById("runBtn");
-    const downloadBtn = document.getElementById("downloadCsv");
-    const runNote = document.getElementById("runNote");
-    const debugNote = document.getElementById("debugNote");
+</div>
 
-    function setLibStatus(state, text){
-      libDot.classList.toggle("good", state==="good");
-      libDot.classList.toggle("bad", state==="bad");
-      libText.textContent = text;
-    }
+<script>
+/* ---------- SheetJS status ---------- */
+const pill = document.getElementById("statusPill");
+const runBtn = document.getElementById("runBtn");
+const note = document.getElementById("note");
 
-    function finalizeXLSXOk(){
-      setLibStatus("good", "SheetJS: local OK");
-      runNote.textContent = "Ready. Upload a sales file and click Run.";
-      runBtn.disabled = false;
-    }
+if (window.XLSX) {
+  pill.textContent = "SheetJS: local OK";
+  runBtn.disabled = false;
+  note.textContent = "Ready.";
+} else {
+  pill.textContent = "SheetJS: failed";
+  note.textContent = "xlsx.full.min.js did not load.";
+}
 
-    function finalizeXLSXFail(msg){
-      setLibStatus("bad", "SheetJS: failed");
-      runNote.innerHTML = `<span class="err">${msg}</span>`;
-      runBtn.disabled = true;
-    }
+/* ---------- Run report ---------- */
+runBtn.onclick = async () => {
+  const f = document.getElementById("file").files[0];
+  if (!f) return;
 
-    async function loadSheetJSViaFetch(){
-      setLibStatus("warn", "SheetJS: loading…");
-      runNote.textContent = "Loading SheetJS…";
-      debugNote.textContent = "";
+  const buf = await f.arrayBuffer();
+  const wb = XLSX.read(buf, { type: "array" });
+  const sheet = wb.Sheets[wb.SheetNames[0]];
+  const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
 
-      try {
-        // Force real fetch (avoid caching weirdness)
-        const url = XLSX_URL + `?v=${Date.now()}`;
-        const res = await fetch(url, { cache: "no-store" });
+  document.getElementById("rows").textContent = rows.length;
 
-        if (!res.ok) {
-          finalizeXLSXFail(`SheetJS fetch failed: HTTP ${res.status} from ${XLSX_URL}`);
-          return;
-        }
+  const gtinKey = Object.keys(rows[0]).find(k => k.toLowerCase()==="gtin");
+  const qsKey   = Object.keys(rows[0]).find(k => k.toLowerCase()==="qs");
 
-        const jsText = await res.text();
-        if (!jsText || jsText.length < 1000) {
-          finalizeXLSXFail(`SheetJS content looked wrong (too small). Check ${XLSX_URL}`);
-          return;
-        }
+  if (!gtinKey || !qsKey) {
+    note.textContent = "Missing GTIN or QS column.";
+    return;
+  }
 
-        // Execute via Blob URL (bypasses script-load quirks)
-        const blob = new Blob([jsText], { type: "text/javascript" });
-        const blobUrl = URL.createObjectURL(blob);
+  const map = {};
+  rows.forEach(r=>{
+    if (!r[gtinKey]) return;
+    map[r[gtinKey]] = (map[r[gtinKey]]||0) + Number(r[qsKey]||0);
+  });
 
-        const s = document.createElement("script");
-        s.src = blobUrl;
-        s.onload = () => {
-          URL.revokeObjectURL(blobUrl);
-          if (window.XLSX) finalizeXLSXOk();
-          else finalizeXLSXFail("SheetJS executed but XLSX global was not found.");
-        };
-        s.onerror = () => {
-          URL.revokeObjectURL(blobUrl);
-          finalizeXLSXFail("Failed to execute SheetJS after fetching it.");
-        };
+  document.getElementById("matched").textContent = Object.keys(map).length;
+  document.getElementById("undef").textContent = 0;
 
-        document.head.appendChild(s);
-
-      } catch (err) {
-        finalizeXLSXFail(`SheetJS load error: ${err?.message || String(err)}`);
-      }
-    }
-
-    // Start loading immediately
-    loadSheetJSViaFetch();
-
-    // Safety poll (in case onload is skipped)
-    (function pollForXLSX(){
-      const start = Date.now();
-      const maxMs = 6000;
-      const t = setInterval(() => {
-        if (window.XLSX) {
-          clearInterval(t);
-          finalizeXLSXOk();
-          return;
-        }
-        if (Date.now() - start > maxMs) {
-          clearInterval(t);
-          finalizeXLSXFail(`Timed out waiting for SheetJS. Check that ${XLSX_URL} returns 200 in a new tab.`);
-        }
-      }, 100);
-    })();
-  </script>
-
-  <!-- ===== App logic (minimal placeholders; keep/replace with your full math) ===== -->
-  <script>
-    // Tabs
-    document.querySelectorAll(".tab").forEach(t=>{
-      t.addEventListener("click",()=>{
-        document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));
-        t.classList.add("active");
-        const tab=t.dataset.tab;
-        ["ingredients","undefined"].forEach(n=>{
-          document.getElementById("tab-"+n).style.display=(n===tab)?"block":"none";
-        });
-      });
+  let html = "<table><tr><th>GTIN</th><th>Units Sold</th></tr>";
+  Object.entries(map)
+    .sort((a,b)=>b[1]-a[1])
+    .forEach(([g,q])=>{
+      html += `<tr><td>${g}</td><td>${q}</td></tr>`;
     });
+  html += "</table>";
 
-    // Helpers
-    const rowsLoadedEl = document.getElementById("rowsLoaded");
-    const itemsMatchedEl = document.getElementById("itemsMatched");
-    const undefCountEl = document.getElementById("undefCount");
-    const resultsBadge = document.getElementById("resultsBadge");
-    const tabIngredients = document.getElementById("tab-ingredients");
-    const tabUndefined = document.getElementById("tab-undefined");
-
-    function renderTable(container, cols, rows){
-      if (!rows.length){
-        container.innerHTML = `<div class="note">No data yet.</div>`;
-        return;
-      }
-      const thead = `<tr>${cols.map(c=>`<th class="${c.right?'right':''}">${c.label}</th>`).join("")}</tr>`;
-      const tbody = rows.map(r=>`<tr>${
-        cols.map(c=>`<td class="${c.right?'right':''}">${(r[c.key] ?? "")}</td>`).join("")
-      }</tr>`).join("");
-      container.innerHTML = `<table><thead>${thead}</thead><tbody>${tbody}</tbody></table>`;
-    }
-
-    // Run report (demo parses first sheet and looks for Date/GTIN/QS columns)
-    runBtn.addEventListener("click", async () => {
-      if (!window.XLSX) {
-        runNote.innerHTML = `<span class="err">SheetJS not ready yet. Refresh once (Cmd+Shift+R).</span>`;
-        return;
-      }
-
-      const file = document.getElementById("salesFile").files?.[0];
-      if (!file) {
-        runNote.innerHTML = `<span class="err">Upload a sales report first.</span>`;
-        return;
-      }
-
-      try{
-        runNote.textContent = "Reading .xlsx…";
-        const buf = await file.arrayBuffer();
-        const wb = XLSX.read(buf, { type: "array" });
-
-        const sheet = wb.Sheets[wb.SheetNames[0]];
-        const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
-
-        rowsLoadedEl.textContent = rows.length.toLocaleString();
-
-        // Find columns loosely
-        const norm = (s) => String(s || "").trim().toLowerCase();
-        const hasDate = rows.length ? ("date" in Object.fromEntries(Object.keys(rows[0]).map(k=>[norm(k),true]))) : false;
-
-        // Build a simple check for GTIN & QS presence
-        const keys = rows.length ? Object.keys(rows[0]).map(norm) : [];
-        const gtinKey = Object.keys(rows[0] || {}).find(k => norm(k)==="gtin") || "";
-        const qsKey   = Object.keys(rows[0] || {}).find(k => norm(k)==="qs" || norm(k)==="qty" || norm(k)==="quantity") || "";
-
-        if (!gtinKey || !qsKey) {
-          runNote.innerHTML = `<span class="err">Missing required columns. Found columns: ${keys.join(", ")}</span>`;
-          itemsMatchedEl.textContent = "—";
-          undefCountEl.textContent = "—";
-          resultsBadge.className = "badge bad";
-          resultsBadge.textContent = "Invalid sales file";
-          tabIngredients.innerHTML = `<div class="note err">Your sheet needs columns named <b>GTIN</b> and <b>QS</b> (and ideally <b>Date</b>).</div>`;
-          tabUndefined.innerHTML = `<div class="note">—</div>`;
-          return;
-        }
-
-        // Aggregate QS by GTIN (placeholder until your full master/recipe math runs)
-        const map = new Map();
-        for (const r of rows){
-          const g = String(r[gtinKey] ?? "").trim();
-          const q = Number(r[qsKey] ?? 0) || 0;
-          if (!g) continue;
-          map.set(g, (map.get(g) || 0) + q);
-        }
-
-        // For now: treat all GTINs as "matched" in this placeholder
-        itemsMatchedEl.textContent = map.size.toLocaleString();
-        undefCountEl.textContent = "0";
-
-        resultsBadge.className = "badge good";
-        resultsBadge.textContent = "Parsed sales OK";
-
-        const top = [...map.entries()]
-          .sort((a,b)=>b[1]-a[1])
-          .slice(0, 25)
-          .map(([gtin, qty])=>({ gtin, qty: qty.toLocaleString() }));
-
-        renderTable(
-          tabIngredients,
-          [{key:"gtin",label:"GTIN"},{key:"qty",label:"Units sold",right:true}],
-          top
-        );
-        tabUndefined.innerHTML = `<div class="note">No undefined items in placeholder mode.</div>`;
-
-        runNote.textContent = "Sales loaded. Next step: apply master+recipes math (we can re-add your logic here).";
-        downloadBtn.disabled = false;
-
-        // CSV download (placeholder export of GTIN totals)
-        downloadBtn.onclick = () => {
-          const header = ["GTIN","UnitsSold"];
-          const lines = [header.join(",")].concat(
-            [...map.entries()].map(([g,q])=>`${g},${q}`)
-          );
-          const blob = new Blob([lines.join("\n")], {type:"text/csv"});
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement("a");
-          a.href = url;
-          a.download = "ingredient_usage_placeholder.csv";
-          document.body.appendChild(a);
-          a.click();
-          a.remove();
-          URL.revokeObjectURL(url);
-        };
-
-      }catch(e){
-        runNote.innerHTML = `<span class="err">Failed to read sales file: ${e?.message || e}</span>`;
-      }
-    });
-  </script>
+  document.getElementById("results").innerHTML = html;
+};
+</script>
 </body>
 </html>
