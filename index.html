@@ -5,69 +5,586 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>SnowFruit Ingredient Usage</title>
 
-  <!-- ✅ SheetJS MUST be loaded before any script uses XLSX -->
+  <!-- ✅ MUST load SheetJS before any code uses XLSX -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.19.3/dist/xlsx.full.min.js"></script>
 
   <style>
+    :root{
+      --bg:#0b1220;
+      --panel:#0f1a2e;
+      --text:#eaf0ff;
+      --muted:#9fb0d0;
+      --border:rgba(255,255,255,.10);
+      --accent:#6ee7ff;
+      --accent2:#a78bfa;
+      --good:#34d399;
+      --warn:#fbbf24;
+      --bad:#fb7185;
+      --shadow: 0 14px 40px rgba(0,0,0,.35);
+      --radius: 18px;
+    }
+
+    *{box-sizing:border-box}
     body{
       margin:0;
-      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
-      background:#0b1220;
-      color:#eaf0ff;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+      background: radial-gradient(1200px 600px at 20% 0%, rgba(110,231,255,.13), transparent 60%),
+                  radial-gradient(900px 500px at 80% 10%, rgba(167,139,250,.12), transparent 60%),
+                  linear-gradient(180deg, var(--bg), #070b14);
+      color:var(--text);
+      min-height:100vh;
     }
-    .wrap{max-width:1100px;margin:0 auto;padding:28px}
-    h1{margin:0 0 6px}
+
+    .wrap{max-width:1100px;margin:0 auto;padding:28px 18px 60px}
+    header{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:18px;flex-wrap:wrap}
+    h1{margin:0;font-size:22px;letter-spacing:.2px}
+    .sub{color:var(--muted);font-size:13px;line-height:1.35;margin-top:6px}
+
+    .pill{
+      display:inline-flex;align-items:center;gap:8px;
+      border:1px solid var(--border);
+      background:rgba(255,255,255,.04);
+      padding:8px 10px;border-radius:999px;
+      color:var(--muted);font-size:12px;
+    }
+    .dot{width:8px;height:8px;border-radius:999px;background:var(--warn)}
+    .dot.good{background:var(--good)}
+    .dot.bad{background:var(--bad)}
+
+    .grid{display:grid;grid-template-columns:1fr;gap:14px}
     .card{
-      margin-top:18px;
+      background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
       padding:16px;
-      border-radius:16px;
-      background:#0f1a2e;
-      border:1px solid rgba(255,255,255,.1);
+      box-shadow: var(--shadow);
     }
-    button{padding:10px 14px;border-radius:10px;font-weight:700}
-    input{margin-top:10px}
-    .note{margin-top:10px;color:#9fb0d0}
+    .card h2{margin:0 0 8px;font-size:15px}
+    .card p{margin:0;color:var(--muted);font-size:13px;line-height:1.45}
+
+    .uploader{
+      margin-top:12px;
+      border: 1px dashed rgba(255,255,255,.25);
+      border-radius: 14px;
+      background: rgba(255,255,255,.03);
+      padding:14px;
+      display:flex;
+      gap:12px;
+      align-items:center;
+      justify-content:space-between;
+      flex-wrap:wrap;
+    }
+    .uploader .left{display:flex;flex-direction:column;gap:6px}
+    .uploader .label{font-size:13px}
+    .uploader .hint{font-size:12px;color:var(--muted)}
+    input[type="file"]{color:var(--muted);max-width:100%}
+
+    .btns{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+    button{
+      border:1px solid var(--border);
+      background: rgba(255,255,255,.06);
+      color:var(--text);
+      padding:10px 12px;
+      border-radius: 12px;
+      font-weight:700;
+      cursor:pointer;
+      transition: transform .06s ease, background .2s ease, border .2s ease;
+      font-size:13px;
+    }
+    button:hover{background:rgba(255,255,255,.10)}
+    button:active{transform:translateY(1px)}
+    button.primary{
+      border:1px solid rgba(110,231,255,.35);
+      background: linear-gradient(135deg, rgba(110,231,255,.18), rgba(167,139,250,.14));
+    }
+
+    .stats{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}
+    .stat{
+      border:1px solid var(--border);
+      background: rgba(0,0,0,.15);
+      padding:10px 12px;border-radius:14px;min-width:180px
+    }
+    .stat .k{font-size:11px;color:var(--muted);margin-bottom:4px}
+    .stat .v{font-size:16px;font-weight:900}
+
+    .tabs{margin-top:16px;display:flex;gap:8px;flex-wrap:wrap}
+    .tab{
+      border:1px solid var(--border);
+      background: rgba(255,255,255,.04);
+      padding:8px 10px;border-radius:999px;
+      font-size:12px;color:var(--muted);
+      cursor:pointer;user-select:none;
+    }
+    .tab.active{
+      color:var(--text);
+      border-color: rgba(110,231,255,.35);
+      background: rgba(110,231,255,.10);
+    }
+
+    table{
+      width:100%;
+      border-collapse:collapse;
+      margin-top:12px;
+      overflow:hidden;
+      border-radius: 14px;
+      border:1px solid var(--border);
+      background: rgba(0,0,0,.18);
+    }
+    th, td{
+      padding:10px 10px;
+      border-bottom:1px solid rgba(255,255,255,.06);
+      font-size:12px;
+      text-align:left;
+    }
+    th{
+      color:#cfe0ff;
+      font-size:11px;
+      letter-spacing:.5px;
+      text-transform:uppercase;
+      background: rgba(255,255,255,.04);
+    }
+    tr:hover td{background: rgba(255,255,255,.03)}
+    .right{text-align:right}
+
+    .badge{
+      display:inline-flex;align-items:center;gap:6px;
+      font-size:11px;padding:5px 8px;border-radius:999px;
+      border:1px solid var(--border);
+      background: rgba(255,255,255,.04);
+      color:var(--muted);
+    }
+    .badge.good{border-color:rgba(52,211,153,.35);background:rgba(52,211,153,.12);color:#caffe8}
+    .badge.warn{border-color:rgba(251,191,36,.35);background:rgba(251,191,36,.12);color:#ffe8b0}
+    .badge.bad{border-color:rgba(251,113,133,.35);background:rgba(251,113,133,.12);color:#ffd0da}
+
+    .note{margin-top:10px;color:var(--muted);font-size:12px;line-height:1.45}
+    .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;}
+    .err{color:#ffd0da}
   </style>
 </head>
 
 <body>
   <div class="wrap">
-    <h1>SnowFruit Ingredient Usage</h1>
-    <div class="note">Master is embedded. Upload sales and click Run.</div>
+    <header>
+      <div>
+        <h1>SnowFruit Ingredient Usage</h1>
+        <div class="sub">Master is built-in. Upload your weekly sales report and click Run.</div>
+      </div>
+      <div class="pill">
+        <span class="dot good"></span>
+        <span>Master: embedded</span>
+      </div>
+    </header>
 
-    <div class="card">
-      <input type="file" id="salesFile" accept=".xlsx"/>
-      <br/><br/>
-      <button id="runBtn">Run report</button>
-      <div class="note" id="status"></div>
+    <div class="grid">
+      <div class="card">
+        <h2>Upload Weekly Sales</h2>
+        <p>Sales export must contain: <span class="mono">Date</span>, <span class="mono">GTIN</span>, <span class="mono">QS</span>. Then click Run.</p>
+
+        <div class="uploader">
+          <div class="left">
+            <div class="label">Sales report (.xlsx)</div>
+            <div class="hint">Tip: if totals look low, check “Top undefined items”.</div>
+          </div>
+          <input type="file" id="salesFile" accept=".xlsx"/>
+        </div>
+
+        <div class="btns">
+          <button class="primary" id="runBtn">Run report</button>
+          <button id="downloadCsv">Download ingredient CSV</button>
+        </div>
+
+        <div class="stats">
+          <div class="stat"><div class="k">Sales rows loaded</div><div class="v" id="rowsLoaded">—</div></div>
+          <div class="stat"><div class="k">Items matched</div><div class="v" id="itemsMatched">—</div></div>
+          <div class="stat"><div class="k">Undefined items</div><div class="v" id="undefCount">—</div></div>
+        </div>
+
+        <div class="note" id="runNote">Choose a file, then click Run.</div>
+        <div class="note" id="debugNote"></div>
+      </div>
+
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+          <div>
+            <h2 style="margin:0 0 4px">Results</h2>
+            <p style="margin:0">Ingredient totals + biggest missing items.</p>
+          </div>
+          <span class="badge" id="resultsBadge">No results yet</span>
+        </div>
+
+        <div class="tabs">
+          <div class="tab active" data-tab="ingredients">Ingredient cases used</div>
+          <div class="tab" data-tab="undefined">Top undefined items</div>
+        </div>
+
+        <div id="tab-ingredients"></div>
+        <div id="tab-undefined" style="display:none"></div>
+
+        <div class="note">Undefined items contribute <b>0</b> until their recipes exist.</div>
+      </div>
     </div>
   </div>
 
 <script>
-/* ===== MASTER (minimal placeholder so app runs) ===== */
-const master = { ok:true };
+/* ============================================================
+   ✅ EMBEDDED MASTER (CURRENT FRUIT DEFAULTS - CORE)
+   ------------------------------------------------------------
+   This is the “built-in master”. Expand this object with your
+   full Items/Recipes/Ingredients to cover everything.
+   ============================================================ */
 
-/* ===== SALES HANDLING ===== */
+const MASTER_DATA = {
+  Items: [
+    { item_id: "PINEAPPLE_18", item_name: "Pineapple 18oz", upc_gtin: "PINEAPPLE_18" },
+    { item_id: "WATERMELON_18", item_name: "Watermelon 18oz", upc_gtin: "WATERMELON_18" },
+    { item_id: "MIXED_18", item_name: "Mixed Fruit 18oz", upc_gtin: "MIXED_18" },
+    { item_id: "PSK_18", item_name: "Pineapple Strawberry Kiwi 18oz", upc_gtin: "PSK_18" },
+    { item_id: "PINE_CHUNKS_18", item_name: "Pineapple Chunks 18oz", upc_gtin: "PINE_CHUNKS_18" }
+  ],
+  Recipes: [
+    // item_id, ingredient_id, ingredient_name, ingredient_oz per unit sold
+    { item_id: "PINEAPPLE_18", ingredient_id: "ING_PINEAPPLE", ingredient_name: "Pineapple", ingredient_oz: 18 },
+    { item_id: "WATERMELON_18", ingredient_id: "ING_WATERMELON", ingredient_name: "Watermelon", ingredient_oz: 18 },
+
+    // Defaults you said to keep:
+    { item_id: "MIXED_18", ingredient_id: "ING_PINEAPPLE", ingredient_name: "Pineapple", ingredient_oz: 6 },
+    { item_id: "MIXED_18", ingredient_id: "ING_WATERMELON", ingredient_name: "Watermelon", ingredient_oz: 6 },
+
+    { item_id: "PSK_18", ingredient_id: "ING_PINEAPPLE", ingredient_name: "Pineapple", ingredient_oz: 8 },
+
+    { item_id: "PINE_CHUNKS_18", ingredient_id: "ING_PINEAPPLE", ingredient_name: "Pineapple", ingredient_oz: 18 }
+  ],
+  Ingredients: [
+    { ingredient_id: "ING_PINEAPPLE", ingredient_name: "Pineapple", edible_oz_per_case: 136 },
+    { ingredient_id: "ING_WATERMELON", ingredient_name: "Watermelon", edible_oz_per_case: 800 }
+  ]
+};
+
+/* ============================================================
+   APP LOGIC
+   ============================================================ */
+
+const runNote = document.getElementById("runNote");
+const debugNote = document.getElementById("debugNote");
+const rowsLoaded = document.getElementById("rowsLoaded");
+const itemsMatched = document.getElementById("itemsMatched");
+const undefCount = document.getElementById("undefCount");
+const resultsBadge = document.getElementById("resultsBadge");
 const salesInput = document.getElementById("salesFile");
-const status = document.getElementById("status");
 
-document.getElementById("runBtn").addEventListener("click", async () => {
+let lastIngredientRows = [];
+
+document.querySelectorAll(".tab").forEach(t=>{
+  t.addEventListener("click",()=>{
+    document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));
+    t.classList.add("active");
+    const tab=t.dataset.tab;
+    ["ingredients","undefined"].forEach(n=>{
+      document.getElementById("tab-"+n).style.display=(n===tab)?"block":"none";
+    });
+  });
+});
+
+function normalizeUpc(v){
+  if (v===null || v===undefined) return "";
+  let s = String(v).trim().replace(/\.0+$/,"");
+  if (/e\+?/i.test(s)){
+    const num = Number(s);
+    if (!Number.isNaN(num)) return String(Math.round(num));
+  }
+  if (/^\d+(\.\d+)?$/.test(s)){
+    const num = Number(s);
+    if (!Number.isNaN(num)) return String(Math.round(num));
+  }
+  return s;
+}
+function toNum(v){ const n=Number(v); return Number.isFinite(n)?n:0; }
+function fmt(n,d=2){ if(!Number.isFinite(n)) return "—"; return n.toLocaleString(undefined,{maximumFractionDigits:d}); }
+
+function buildMaster(data){
+  const itemByUpc = new Map();
+  for(const r of data.Items){
+    const upc = normalizeUpc(r.upc_gtin ?? r["UPC/GTIN"] ?? "");
+    if(!upc) continue;
+    const row = { item_id:String(r.item_id||"").trim(), item_name:String(r.item_name||"").trim(), upc_gtin:upc };
+    if(!itemByUpc.has(upc)) itemByUpc.set(upc, []);
+    itemByUpc.get(upc).push(row);
+  }
+
+  const recipeByItem = new Map();
+  for(const r of data.Recipes){
+    const item_id = String(r.item_id||"").trim();
+    if(!item_id) continue;
+    if(!recipeByItem.has(item_id)) recipeByItem.set(item_id, []);
+    recipeByItem.get(item_id).push({
+      ingredient_id:String(r.ingredient_id||"").trim(),
+      ingredient_name:String(r.ingredient_name||"").trim(),
+      ingredient_oz:Number(r.ingredient_oz)
+    });
+  }
+
+  const ingById = new Map();
+  for(const r of data.Ingredients){
+    const iid = String(r.ingredient_id||"").trim();
+    if(!iid) continue;
+    ingById.set(iid,{
+      ingredient_name:String(r.ingredient_name||"").trim(),
+      edible_oz_per_case:Number(r.edible_oz_per_case)
+    });
+  }
+
+  return { itemByUpc, recipeByItem, ingById };
+}
+
+const master = buildMaster(MASTER_DATA);
+
+// Make selection “feel” responsive
+salesInput.addEventListener("change", () => {
   const file = salesInput.files?.[0];
-  if (!file){
-    status.textContent = "Upload a sales report first.";
+  if(file) runNote.textContent = `Selected: ${file.name}. Click “Run report”.`;
+});
+
+// Render table helper
+function renderTable(containerId, cols, rows, maxRows=200){
+  const el=document.getElementById(containerId);
+  if(!rows || rows.length===0){
+    el.innerHTML=`<div class="note">No rows.</div>`;
+    return;
+  }
+  const show=rows.slice(0,maxRows);
+  let html=`<table><thead><tr>`;
+  for(const c of cols){
+    html += `<th class="${c.align==='right'?'right':''}">${c.label}</th>`;
+  }
+  html+=`</tr></thead><tbody>`;
+  for(const r of show){
+    html+=`<tr>`;
+    for(const c of cols){
+      let v=r[c.key];
+      if(c.format) v=c.format(v,r);
+      html+=`<td class="${c.align==='right'?'right':''}">${v}</td>`;
+    }
+    html+=`</tr>`;
+  }
+  html+=`</tbody></table>`;
+  if(rows.length>maxRows){
+    html+=`<div class="note">Showing top ${maxRows} of ${rows.length} rows.</div>`;
+  }
+  el.innerHTML=html;
+}
+
+// Download helper
+function downloadText(filename, text){
+  const blob = new Blob([text], {type:"text/plain;charset=utf-8"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href=url; a.download=filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function findHeaderKey(obj, candidates){
+  const keys = Object.keys(obj || {});
+  const lower = new Map(keys.map(k => [k.toLowerCase().trim(), k]));
+  for(const c of candidates){
+    const hit = lower.get(String(c).toLowerCase().trim());
+    if(hit) return hit;
+  }
+  return null;
+}
+
+function parseSalesRows(wb){
+  // Try to find a sheet that has GTIN + QS
+  let bestSheet = wb.SheetNames[0];
+  let bestScore = -1;
+
+  for(const name of wb.SheetNames){
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets[name], {defval:""});
+    const sample = rows[0] || {};
+    const gtinKey = findHeaderKey(sample, ["GTIN","gtin","UPC","UPC/GTIN","upc_gtin"]);
+    const qsKey   = findHeaderKey(sample, ["QS","qs","Qty","Quantity","Units"]);
+    const score = (gtinKey?1:0) + (qsKey?1:0);
+    if(score > bestScore){
+      bestScore = score;
+      bestSheet = name;
+    }
+  }
+
+  const rows = XLSX.utils.sheet_to_json(wb.Sheets[bestSheet], {defval:""});
+  return { sheetName: bestSheet, rows };
+}
+
+function pickBestItem(upc, salesName){
+  const candidates = master.itemByUpc.get(upc) || [];
+  if(candidates.length===0) return null;
+  if(candidates.length===1) return candidates[0];
+
+  // Prefer closer name match if duplicates exist
+  const s=(salesName||"").trim().toLowerCase();
+  let best=candidates[0], bestScore=-1;
+  for(const c of candidates){
+    const n=(c.item_name||"").trim().toLowerCase();
+    let score=0;
+    if(n===s) score=100;
+    else if(n.includes(s) || s.includes(n)) score=80;
+    else{
+      const st=new Set(s.split(/\s+/).filter(Boolean));
+      const nt=new Set(n.split(/\s+/).filter(Boolean));
+      const inter=[...st].filter(x=>nt.has(x)).length;
+      const uni=new Set([...st,...nt]).size || 1;
+      score=Math.floor(60*inter/uni);
+    }
+    if(score>bestScore){bestScore=score;best=c;}
+  }
+  return best;
+}
+
+async function runReport(){
+  debugNote.textContent = "";
+  runNote.textContent = "";
+
+  const file = salesInput.files?.[0];
+  if(!file){
+    runNote.textContent = "Upload a sales report first.";
     return;
   }
 
-  try {
+  try{
+    // ✅ Always read file on Run (no timing issues)
     const buf = await file.arrayBuffer();
-    const wb = XLSX.read(buf, { type: "array" }); // <-- XLSX now exists
-    status.textContent = "Sales file loaded successfully. Sheets: " + wb.SheetNames.join(", ");
-  } catch (err) {
+    const wb = XLSX.read(buf, {type:"array"});
+
+    const { sheetName, rows } = parseSalesRows(wb);
+    rowsLoaded.textContent = String(rows.length);
+    debugNote.innerHTML = `Using sheet: <span class="mono">${sheetName}</span>`;
+
+    // Determine column keys from first row
+    const sample = rows[0] || {};
+    const gtinKey = findHeaderKey(sample, ["GTIN","gtin","UPC","UPC/GTIN","upc_gtin"]);
+    const qsKey   = findHeaderKey(sample, ["QS","qs","Qty","Quantity","Units"]);
+    const nameKey = findHeaderKey(sample, ["Product name","Product Name","Item","Item Name","Description"]);
+
+    if(!gtinKey || !qsKey){
+      runNote.innerHTML = `<span class="err">Could not find required columns. Need GTIN + QS.</span>`;
+      return;
+    }
+
+    // Aggregate units by GTIN
+    const byUpc = new Map();
+    for(const r of rows){
+      const upc = normalizeUpc(r[gtinKey]);
+      if(!upc) continue;
+      const units = toNum(r[qsKey]);
+      const name = nameKey ? String(r[nameKey]||"") : "";
+      if(!byUpc.has(upc)) byUpc.set(upc, { upc, units:0, name });
+      byUpc.get(upc).units += units;
+      if(name && !byUpc.get(upc).name) byUpc.get(upc).name = name;
+    }
+
+    // Compute ingredient totals (oz)
+    let matched = 0;
+    const undefinedItems = [];
+    const ingTotals = new Map(); // ingredient_id -> oz
+
+    for(const row of byUpc.values()){
+      const item = pickBestItem(row.upc, row.name);
+
+      // NOTE: In your real master, UPC/GTIN will be numeric codes.
+      // In this minimal embedded master we used symbolic GTINs so you can see it work.
+      if(!item){
+        undefinedItems.push({ name: row.name||"(unknown)", upc: row.upc, units: row.units, reason:"Not in master" });
+        continue;
+      }
+      matched++;
+
+      const recipe = master.recipeByItem.get(item.item_id) || [];
+      const usable = recipe.filter(x => x.ingredient_id && Number.isFinite(x.ingredient_oz) && x.ingredient_oz>0);
+      if(usable.length===0){
+        undefinedItems.push({ name: item.item_name||row.name, upc: row.upc, units: row.units, reason:"No recipe" });
+        continue;
+      }
+
+      for(const line of usable){
+        const oz = row.units * line.ingredient_oz;
+        ingTotals.set(line.ingredient_id, (ingTotals.get(line.ingredient_id)||0) + oz);
+      }
+    }
+
+    itemsMatched.textContent = String(matched);
+    undefCount.textContent = String(undefinedItems.length);
+
+    // Ingredient rows
+    const ingRows = [];
+    for(const [iid, oz] of ingTotals.entries()){
+      const info = master.ingById.get(iid);
+      const caseOz = info?.edible_oz_per_case;
+      const exact = (Number.isFinite(caseOz) && caseOz>0) ? oz / caseOz : NaN;
+      ingRows.push({
+        ingredient_name: info?.ingredient_name || iid,
+        total_oz: oz,
+        edible_oz_per_case: caseOz,
+        cases_exact: exact,
+        cases_rounded: Number.isFinite(exact) ? Math.ceil(exact) : ""
+      });
+    }
+    ingRows.sort((a,b)=>(b.cases_exact||0)-(a.cases_exact||0));
+    lastIngredientRows = ingRows;
+
+    undefinedItems.sort((a,b)=>b.units-a.units);
+
+    const badgeType = undefinedItems.length===0 ? "good" : (undefinedItems.length<10 ? "warn" : "bad");
+    resultsBadge.className = "badge " + badgeType;
+    resultsBadge.textContent = `Computed ${ingRows.length} ingredients • Undefined: ${undefinedItems.length}`;
+
+    renderTable("tab-ingredients",[
+      {key:"ingredient_name",label:"Ingredient"},
+      {key:"total_oz",label:"Total oz",align:"right",format:v=>fmt(v,0)},
+      {key:"edible_oz_per_case",label:"Edible oz/case",align:"right",format:v=>fmt(v,0)},
+      {key:"cases_exact",label:"Cases (exact)",align:"right",format:v=>fmt(v,3)},
+      {key:"cases_rounded",label:"Cases (rounded)",align:"right",format:v=>fmt(v,0)}
+    ], ingRows, 250);
+
+    renderTable("tab-undefined",[
+      {key:"name",label:"Product"},
+      {key:"upc",label:"GTIN"},
+      {key:"units",label:"Units sold",align:"right",format:v=>fmt(v,0)},
+      {key:"reason",label:"Why missing"}
+    ], undefinedItems, 80);
+
+    runNote.innerHTML = (undefinedItems.length>0)
+      ? `Computed results, but <b>${undefinedItems.length}</b> items are undefined and contribute <b>0</b> until recipes exist.`
+      : `Computed results successfully.`;
+
+  }catch(err){
     console.error(err);
-    status.textContent = "Failed to read sales file: " + err.message;
+    runNote.innerHTML = `<span class="err">Failed to read sales file: ${String(err.message||err)}</span>`;
   }
+}
+
+document.getElementById("runBtn").addEventListener("click", runReport);
+
+document.getElementById("downloadCsv").addEventListener("click", ()=>{
+  if(!lastIngredientRows || lastIngredientRows.length===0){
+    runNote.textContent = "Run a report first, then download CSV.";
+    return;
+  }
+  const header = ["ingredient_name","total_oz","edible_oz_per_case","cases_exact","cases_rounded"];
+  const lines = [header.join(",")];
+  for(const r of lastIngredientRows){
+    const row = [
+      `"${String(r.ingredient_name).replaceAll('"','""')}"`,
+      r.total_oz,
+      r.edible_oz_per_case ?? "",
+      r.cases_exact ?? "",
+      r.cases_rounded ?? ""
+    ];
+    lines.push(row.join(","));
+  }
+  downloadText("ingredient_cases_used.csv", lines.join("\n"));
 });
 </script>
-
 </body>
 </html>
