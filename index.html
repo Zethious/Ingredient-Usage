@@ -1,551 +1,193 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>SnowFruit Ingredient Usage</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <!-- Optional: silence favicon 404 -->
+  <link rel="icon" href="data:,">
 
   <style>
-    :root{
-      --bg:#0b1220;
-      --text:#eaf0ff;
-      --muted:#9fb0d0;
-      --border:rgba(255,255,255,.10);
-      --accent:#6ee7ff;
-      --accent2:#a78bfa;
-      --good:#34d399;
-      --warn:#fbbf24;
-      --bad:#fb7185;
-      --shadow: 0 14px 40px rgba(0,0,0,.35);
-      --radius: 18px;
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+      background: radial-gradient(1200px 600px at 20% -10%, #1b2a4a 0%, #0b1220 60%);
+      color: #eaf0ff;
     }
-    *{box-sizing:border-box}
-    body{
-      margin:0;
-      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
-      background: radial-gradient(1200px 600px at 20% 0%, rgba(110,231,255,.13), transparent 60%),
-                  radial-gradient(900px 500px at 80% 10%, rgba(167,139,250,.12), transparent 60%),
-                  linear-gradient(180deg, var(--bg), #070b14);
-      color:var(--text);
-      min-height:100vh;
-    }
-    .wrap{max-width:1100px;margin:0 auto;padding:28px 18px 60px}
-    header{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:18px;flex-wrap:wrap}
-    h1{margin:0;font-size:22px;letter-spacing:.2px}
-    .sub{color:var(--muted);font-size:13px;line-height:1.35;margin-top:6px}
+    .wrap { max-width: 1200px; margin: 0 auto; padding: 28px; }
+    h1 { margin: 0 0 6px; font-size: 34px; }
+    .sub { color: #9fb0d0; margin-bottom: 20px; }
 
-    .pill{
-      display:inline-flex;align-items:center;gap:8px;
-      border:1px solid var(--border);
-      background:rgba(255,255,255,.04);
-      padding:8px 10px;border-radius:999px;
-      color:var(--muted);font-size:12px;
+    .card {
+      background: rgba(20,30,55,.85);
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: 18px;
+      padding: 20px;
+      margin-bottom: 18px;
+      box-shadow: 0 20px 50px rgba(0,0,0,.35);
     }
-    .dot{width:8px;height:8px;border-radius:999px;background:var(--warn)}
-    .dot.good{background:var(--good)}
-    .dot.bad{background:var(--bad)}
 
-    .card{
-      background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
-      border: 1px solid var(--border);
-      border-radius: var(--radius);
-      padding:16px;
-      box-shadow: var(--shadow);
-      margin-top:14px;
+    .header-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
     }
-    .card h2{margin:0 0 8px;font-size:15px}
-    .card p{margin:0;color:var(--muted);font-size:13px;line-height:1.45}
 
-    .uploader{
-      margin-top:12px;
-      border: 1px dashed rgba(255,255,255,.25);
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 12px;
+      border-radius: 999px;
+      background: rgba(255,255,255,.08);
+      font-size: 14px;
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #f5c451;
+    }
+    .dot.ok { background: #3ddc84; }
+    .dot.bad { background: #ff5c5c; }
+
+    .upload-box {
+      border: 1px dashed rgba(255,255,255,.18);
       border-radius: 14px;
-      background: rgba(255,255,255,.03);
-      padding:14px;
-      display:flex;
-      gap:12px;
-      align-items:center;
-      justify-content:space-between;
-      flex-wrap:wrap;
+      padding: 16px;
+      margin-top: 12px;
     }
-    .uploader .left{display:flex;flex-direction:column;gap:6px}
-    .uploader .label{font-size:13px}
-    .uploader .hint{font-size:12px;color:var(--muted)}
-    input[type="file"]{color:var(--muted);max-width:100%}
 
-    .btns{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
-    button{
-      border:1px solid var(--border);
-      background: rgba(255,255,255,.06);
-      color:var(--text);
-      padding:10px 12px;
+    button {
+      padding: 10px 16px;
       border-radius: 12px;
-      font-weight:700;
-      cursor:pointer;
-      transition: transform .06s ease, background .2s ease, border .2s ease, opacity .2s ease;
-      font-size:13px;
-    }
-    button:hover{background:rgba(255,255,255,.10)}
-    button:active{transform:translateY(1px)}
-    button.primary{
-      border:1px solid rgba(110,231,255,.35);
-      background: linear-gradient(135deg, rgba(110,231,255,.18), rgba(167,139,250,.14));
-    }
-    button:disabled{opacity:.45;cursor:not-allowed}
-
-    .stats{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}
-    .stat{
-      border:1px solid var(--border);
-      background: rgba(0,0,0,.15);
-      padding:10px 12px;border-radius:14px;min-width:180px
-    }
-    .stat .k{font-size:11px;color:var(--muted);margin-bottom:4px}
-    .stat .v{font-size:16px;font-weight:900}
-
-    .tabs{margin-top:16px;display:flex;gap:8px;flex-wrap:wrap}
-    .tab{
-      border:1px solid var(--border);
-      background: rgba(255,255,255,.04);
-      padding:8px 10px;border-radius:999px;
-      font-size:12px;color:var(--muted);
-      cursor:pointer;user-select:none;
-    }
-    .tab.active{
-      color:var(--text);
-      border-color: rgba(110,231,255,.35);
-      background: rgba(110,231,255,.10);
+      border: none;
+      font-weight: 700;
+      cursor: pointer;
+      background: linear-gradient(135deg,#2e6bff,#4dd0ff);
+      color: #06122b;
+      margin-right: 10px;
     }
 
-    table{
-      width:100%;
-      border-collapse:collapse;
-      margin-top:12px;
-      overflow:hidden;
-      border-radius: 14px;
-      border:1px solid var(--border);
-      background: rgba(0,0,0,.18);
+    button:disabled {
+      opacity: .45;
+      cursor: not-allowed;
     }
-    th, td{
-      padding:10px 10px;
-      border-bottom:1px solid rgba(255,255,255,.06);
-      font-size:12px;
-      text-align:left;
-    }
-    th{
-      color:#cfe0ff;
-      font-size:11px;
-      letter-spacing:.5px;
-      text-transform:uppercase;
-      background: rgba(255,255,255,.04);
-    }
-    tr:hover td{background: rgba(255,255,255,.03)}
-    .right{text-align:right}
 
-    .badge{
-      display:inline-flex;align-items:center;gap:6px;
-      font-size:11px;padding:5px 8px;border-radius:999px;
-      border:1px solid var(--border);
-      background: rgba(255,255,255,.04);
-      color:var(--muted);
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(3,1fr);
+      gap: 12px;
+      margin-top: 14px;
     }
-    .badge.good{border-color:rgba(52,211,153,.35);background:rgba(52,211,153,.12);color:#caffe8}
-    .badge.warn{border-color:rgba(251,191,36,.35);background:rgba(251,191,36,.12);color:#ffe8b0}
-    .badge.bad{border-color:rgba(251,113,133,.35);background:rgba(251,113,133,.12);color:#ffd0da}
 
-    .note{margin-top:10px;color:var(--muted);font-size:12px;line-height:1.45}
-    .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;}
-    .err{color:#ffd0da}
-    .ok{color:#caffe8}
+    .stat {
+      background: rgba(255,255,255,.05);
+      border-radius: 12px;
+      padding: 12px;
+      font-size: 14px;
+    }
+
+    .note { margin-top: 10px; color: #9fb0d0; }
+    .err { color: #ff9b9b; }
   </style>
 </head>
-
 <body>
-  <div class="wrap">
-    <header>
-      <div>
-        <h1>SnowFruit Ingredient Usage</h1>
-        <div class="sub">Master is built-in. Upload your weekly sales report (.xlsx) and click Run.</div>
-      </div>
-      <div class="pill">
-        <span class="dot" id="libDot"></span>
-        <span id="libText">SheetJS: checking…</span>
-      </div>
-    </header>
 
-    <div class="card">
-      <h2>Upload Weekly Sales</h2>
-      <p>Required columns: <span class="mono">Date</span>, <span class="mono">GTIN</span>, <span class="mono">QS</span>. Then click Run.</p>
-
-      <div class="uploader">
-        <div class="left">
-          <div class="label">Sales report (.xlsx)</div>
-          <div class="hint">XLSX parsing loads from your site (no CDNs): <span class="mono" id="xlsxPathText">…</span></div>
-        </div>
-        <input type="file" id="salesFile" accept=".xlsx"/>
+<div class="wrap">
+  <div class="header-row">
+    <div>
+      <h1>SnowFruit Ingredient Usage</h1>
+      <div class="sub">
+        Master is built-in. Upload your weekly sales report (.xlsx) and click Run.
       </div>
-
-      <div class="btns">
-        <button class="primary" id="runBtn" disabled>Run report</button>
-        <button id="downloadCsv" disabled>Download ingredient CSV</button>
-      </div>
-
-      <div class="stats">
-        <div class="stat"><div class="k">Sales rows loaded</div><div class="v" id="rowsLoaded">—</div></div>
-        <div class="stat"><div class="k">Items matched</div><div class="v" id="itemsMatched">—</div></div>
-        <div class="stat"><div class="k">Undefined items</div><div class="v" id="undefCount">—</div></div>
-      </div>
-
-      <div class="note" id="runNote">Loading SheetJS…</div>
-      <div class="note" id="debugNote"></div>
     </div>
 
-    <div class="card">
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
-        <div>
-          <h2 style="margin:0 0 4px">Results</h2>
-          <p style="margin:0">Ingredient totals + biggest missing items.</p>
-        </div>
-        <span class="badge" id="resultsBadge">No results yet</span>
-      </div>
-
-      <div class="tabs">
-        <div class="tab active" data-tab="ingredients">Ingredient cases used</div>
-        <div class="tab" data-tab="undefined">Top undefined items</div>
-      </div>
-
-      <div id="tab-ingredients"></div>
-      <div id="tab-undefined" style="display:none"></div>
-
-      <div class="note">Undefined items contribute <b>0</b> until their recipes exist.</div>
+    <div class="pill">
+      <span id="libDot" class="dot"></span>
+      <span id="libText">SheetJS: loading…</span>
     </div>
   </div>
 
-  <script>
-    // ✅ If you ever rename the repo, update this ONE value:
-    const REPO_BASE = "/Ingredient-Usage";
-    const XLSX_URL = `${REPO_BASE}/vendor/xlsx.full.min.js`;
-    document.getElementById("xlsxPathText").textContent = XLSX_URL;
+  <div class="card">
+    <strong>Upload Weekly Sales</strong>
+    <div class="note">Required columns: Date, GTIN, QS</div>
 
-    const libDot = document.getElementById("libDot");
-    const libText = document.getElementById("libText");
-    const runBtn = document.getElementById("runBtn");
-    const downloadBtn = document.getElementById("downloadCsv");
-    const runNote = document.getElementById("runNote");
-    const debugNote = document.getElementById("debugNote");
-    const salesInput = document.getElementById("salesFile");
+    <div class="upload-box">
+      <input id="salesFile" type="file" accept=".xlsx" />
+      <div class="note">
+        XLSX parsing loads from your site (no CDNs):
+        <code>/Ingredient-Usage/vendor/xlsx.full.min.js</code>
+      </div>
+    </div>
 
-    function setLibStatus(state, text){
-      libDot.classList.toggle("good", state==="good");
-      libDot.classList.toggle("bad", state==="bad");
-      libText.textContent = text;
+    <div style="margin-top:14px">
+      <button id="runBtn" disabled>Run report</button>
+    </div>
+
+    <div class="stats">
+      <div class="stat">Sales rows loaded<br><strong id="rows">—</strong></div>
+      <div class="stat">Items matched<br><strong id="matched">—</strong></div>
+      <div class="stat">Undefined items<br><strong id="undefined">—</strong></div>
+    </div>
+
+    <div id="statusText" class="note">Loading SheetJS…</div>
+  </div>
+
+  <div class="card">
+    <strong>Results</strong>
+    <div class="note">Ingredient totals + biggest missing items.</div>
+    <div class="note">No results yet</div>
+  </div>
+</div>
+
+<!-- ===== SheetJS (LOCAL, PROJECT PATH) ===== -->
+<script
+  src="/Ingredient-Usage/vendor/xlsx.full.min.js"
+  onload="onXLSXLoaded()"
+  onerror="onXLSXFailed()">
+</script>
+
+<script>
+  const runBtn = document.getElementById("runBtn");
+  const libDot = document.getElementById("libDot");
+  const libText = document.getElementById("libText");
+  const statusText = document.getElementById("statusText");
+
+  function onXLSXLoaded() {
+    libDot.classList.add("ok");
+    libText.textContent = "SheetJS: local OK";
+    statusText.textContent = "Ready. Choose a sales report and click Run.";
+    runBtn.disabled = false;
+  }
+
+  function onXLSXFailed() {
+    libDot.classList.add("bad");
+    libText.textContent = "SheetJS: failed";
+    statusText.innerHTML =
+      '<span class="err">Could not load SheetJS from /Ingredient-Usage/vendor/xlsx.full.min.js</span>';
+  }
+
+  runBtn.addEventListener("click", async () => {
+    const file = document.getElementById("salesFile").files[0];
+    if (!file) {
+      statusText.innerHTML = '<span class="err">Please choose a sales file.</span>';
+      return;
     }
 
-    // --- SheetJS load handlers (reliable on GitHub project pages) ---
-    function onXLSXLoaded(){
-      console.log("[OK] SheetJS loaded:", XLSX_URL, "XLSX version:", (window.XLSX && XLSX.version) ? XLSX.version : "(unknown)");
-      setLibStatus("good", "SheetJS: local OK");
-      runBtn.disabled = false;
-      runNote.textContent = "Choose a sales report and click Run.";
+    try {
+      const buf = await file.arrayBuffer();
+      const wb = XLSX.read(buf, { type: "array" });
+      document.getElementById("rows").textContent =
+        XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]).length;
+      statusText.textContent = "Sales file loaded successfully.";
+    } catch (e) {
+      statusText.innerHTML = `<span class="err">${e.message}</span>`;
     }
-    function onXLSXFailed(){
-      console.error("[FAIL] Could not load SheetJS from:", XLSX_URL);
-      setLibStatus("bad", "SheetJS: failed");
-      runBtn.disabled = true;
-      runNote.innerHTML = `<span class="err">Could not load SheetJS from</span> <span class="mono">${XLSX_URL}</span>`;
-    }
+  });
+</script>
 
-    // Dynamically inject the script so we can attach onload/onerror cleanly
-    (function loadSheetJS(){
-      const s = document.createElement("script");
-      s.src = XLSX_URL;
-      s.onload = onXLSXLoaded;
-      s.onerror = onXLSXFailed;
-      document.head.appendChild(s);
-    })();
-
-    /* ==========================
-       MASTER (placeholder — keep your real embedded master here)
-       ========================== */
-    const MASTER_DATA = {
-      Items: [
-        { item_id:"PINEAPPLE_18", item_name:"Pineapple 18oz", upc_gtin:"PINEAPPLE_18" },
-        { item_id:"WATERMELON_18", item_name:"Watermelon 18oz", upc_gtin:"WATERMELON_18" }
-      ],
-      Recipes: [
-        { item_id:"PINEAPPLE_18", ingredient_id:"ING_PINEAPPLE", ingredient_name:"Pineapple", ingredient_oz:18 },
-        { item_id:"WATERMELON_18", ingredient_id:"ING_WATERMELON", ingredient_name:"Watermelon", ingredient_oz:18 }
-      ],
-      Ingredients: [
-        { ingredient_id:"ING_PINEAPPLE", ingredient_name:"Pineapple", edible_oz_per_case:136 },
-        { ingredient_id:"ING_WATERMELON", ingredient_name:"Watermelon", edible_oz_per_case:800 }
-      ]
-    };
-
-    function normalizeUpc(v){
-      if (v===null || v===undefined) return "";
-      let s = String(v).trim().replace(/\.0+$/,"");
-      if (/e\+?/i.test(s)){
-        const num = Number(s);
-        if (!Number.isNaN(num)) return String(Math.round(num));
-      }
-      if (/^\d+(\.\d+)?$/.test(s)){
-        const num = Number(s);
-        if (!Number.isNaN(num)) return String(Math.round(num));
-      }
-      return s;
-    }
-    function toNum(v){ const n=Number(v); return Number.isFinite(n)?n:0; }
-    function fmt(n,d=2){ if(!Number.isFinite(n)) return "—"; return n.toLocaleString(undefined,{maximumFractionDigits:d}); }
-
-    function buildMaster(data){
-      const itemByUpc = new Map();
-      for(const r of data.Items){
-        const upc = normalizeUpc(r.upc_gtin ?? "");
-        if(!upc) continue;
-        const row = { item_id:String(r.item_id||"").trim(), item_name:String(r.item_name||"").trim(), upc_gtin:upc };
-        if(!itemByUpc.has(upc)) itemByUpc.set(upc, []);
-        itemByUpc.get(upc).push(row);
-      }
-      const recipeByItem = new Map();
-      for(const r of data.Recipes){
-        const item_id = String(r.item_id||"").trim();
-        if(!item_id) continue;
-        if(!recipeByItem.has(item_id)) recipeByItem.set(item_id, []);
-        recipeByItem.get(item_id).push({
-          ingredient_id:String(r.ingredient_id||"").trim(),
-          ingredient_name:String(r.ingredient_name||"").trim(),
-          ingredient_oz:Number(r.ingredient_oz)
-        });
-      }
-      const ingById = new Map();
-      for(const r of data.Ingredients){
-        const iid = String(r.ingredient_id||"").trim();
-        if(!iid) continue;
-        ingById.set(iid,{
-          ingredient_name:String(r.ingredient_name||"").trim(),
-          edible_oz_per_case:Number(r.edible_oz_per_case)
-        });
-      }
-      return { itemByUpc, recipeByItem, ingById };
-    }
-    const master = buildMaster(MASTER_DATA);
-
-    const rowsLoaded = document.getElementById("rowsLoaded");
-    const itemsMatched = document.getElementById("itemsMatched");
-    const undefCount = document.getElementById("undefCount");
-    const resultsBadge = document.getElementById("resultsBadge");
-    let lastIngredientRows = [];
-
-    document.querySelectorAll(".tab").forEach(t=>{
-      t.addEventListener("click",()=>{
-        document.querySelectorAll(".tab").forEach(x=>x.classList.remove("active"));
-        t.classList.add("active");
-        const tab=t.dataset.tab;
-        ["ingredients","undefined"].forEach(n=>{
-          document.getElementById("tab-"+n).style.display=(n===tab)?"block":"none";
-        });
-      });
-    });
-
-    function renderTable(containerId, cols, rows, maxRows=200){
-      const el=document.getElementById(containerId);
-      if(!rows || rows.length===0){
-        el.innerHTML=`<div class="note">No rows.</div>`;
-        return;
-      }
-      const show=rows.slice(0,maxRows);
-      let html=`<table><thead><tr>`;
-      for(const c of cols){
-        html += `<th class="${c.align==='right'?'right':''}">${c.label}</th>`;
-      }
-      html+=`</tr></thead><tbody>`;
-      for(const r of show){
-        html+=`<tr>`;
-        for(const c of cols){
-          let v=r[c.key];
-          if(c.format) v=c.format(v,r);
-          html+=`<td class="${c.align==='right'?'right':''}">${v}</td>`;
-        }
-        html+=`</tr>`;
-      }
-      html+=`</tbody></table>`;
-      if(rows.length>maxRows){
-        html+=`<div class="note">Showing top ${maxRows} of ${rows.length} rows.</div>`;
-      }
-      el.innerHTML=html;
-    }
-
-    function downloadText(filename, text){
-      const blob = new Blob([text], {type:"text/plain;charset=utf-8"});
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href=url; a.download=filename;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-    }
-
-    function findHeaderKey(obj, candidates){
-      const keys = Object.keys(obj || {});
-      const lower = new Map(keys.map(k => [k.toLowerCase().trim(), k]));
-      for(const c of candidates){
-        const hit = lower.get(String(c).toLowerCase().trim());
-        if(hit) return hit;
-      }
-      return null;
-    }
-
-    function pickBestItem(upc){
-      const candidates = master.itemByUpc.get(upc) || [];
-      return candidates.length ? candidates[0] : null;
-    }
-
-    async function runReport(){
-      const file = salesInput.files?.[0];
-      if(!file){
-        runNote.textContent = "Upload a sales report first.";
-        return;
-      }
-      if(!window.XLSX){
-        runNote.innerHTML = `<span class="err">SheetJS not loaded yet.</span>`;
-        return;
-      }
-
-      try{
-        const buf = await file.arrayBuffer();
-        const wb = XLSX.read(buf, {type:"array"});
-
-        // choose best sheet by headers
-        let bestSheet = wb.SheetNames[0];
-        let bestScore = -1;
-        for(const name of wb.SheetNames){
-          const rows = XLSX.utils.sheet_to_json(wb.Sheets[name], {defval:""});
-          const sample = rows[0] || {};
-          const gtinKey = findHeaderKey(sample, ["GTIN","UPC","UPC/GTIN","upc_gtin"]);
-          const qsKey   = findHeaderKey(sample, ["QS","Qty","Quantity","Units"]);
-          const score = (gtinKey?1:0) + (qsKey?1:0);
-          if(score > bestScore){ bestScore = score; bestSheet = name; }
-        }
-
-        const rows = XLSX.utils.sheet_to_json(wb.Sheets[bestSheet], {defval:""});
-        rowsLoaded.textContent = String(rows.length);
-        debugNote.innerHTML = `Using sheet: <span class="mono">${bestSheet}</span>`;
-
-        const sample = rows[0] || {};
-        const gtinKey = findHeaderKey(sample, ["GTIN","UPC","UPC/GTIN","upc_gtin"]);
-        const qsKey   = findHeaderKey(sample, ["QS","Qty","Quantity","Units"]);
-
-        if(!gtinKey || !qsKey){
-          runNote.innerHTML = `<span class="err">Could not find required columns. Need GTIN + QS.</span>`;
-          return;
-        }
-
-        const byUpc = new Map();
-        for(const r of rows){
-          const upc = normalizeUpc(r[gtinKey]);
-          if(!upc) continue;
-          const units = toNum(r[qsKey]);
-          if(!byUpc.has(upc)) byUpc.set(upc, { upc, units:0 });
-          byUpc.get(upc).units += units;
-        }
-
-        let matched = 0;
-        const undefinedItems = [];
-        const ingTotals = new Map();
-
-        for(const row of byUpc.values()){
-          const item = pickBestItem(row.upc);
-          if(!item){
-            undefinedItems.push({ upc: row.upc, units: row.units, reason:"Not in master" });
-            continue;
-          }
-          matched++;
-
-          const recipe = master.recipeByItem.get(item.item_id) || [];
-          if(recipe.length===0){
-            undefinedItems.push({ upc: row.upc, units: row.units, reason:"No recipe" });
-            continue;
-          }
-
-          for(const line of recipe){
-            const oz = row.units * line.ingredient_oz;
-            ingTotals.set(line.ingredient_id, (ingTotals.get(line.ingredient_id)||0) + oz);
-          }
-        }
-
-        itemsMatched.textContent = String(matched);
-        undefCount.textContent = String(undefinedItems.length);
-
-        const ingRows = [];
-        for(const [iid, oz] of ingTotals.entries()){
-          const info = master.ingById.get(iid);
-          const caseOz = info?.edible_oz_per_case;
-          const exact = (Number.isFinite(caseOz) && caseOz>0) ? oz / caseOz : NaN;
-          ingRows.push({
-            ingredient_name: info?.ingredient_name || iid,
-            total_oz: oz,
-            edible_oz_per_case: caseOz,
-            cases_exact: exact,
-            cases_rounded: Number.isFinite(exact) ? Math.ceil(exact) : ""
-          });
-        }
-        ingRows.sort((a,b)=>(b.cases_exact||0)-(a.cases_exact||0));
-        lastIngredientRows = ingRows;
-
-        const badgeType = undefinedItems.length===0 ? "good" : (undefinedItems.length<10 ? "warn" : "bad");
-        resultsBadge.className = "badge " + badgeType;
-        resultsBadge.textContent = `Computed ${ingRows.length} ingredients • Undefined: ${undefinedItems.length}`;
-
-        renderTable("tab-ingredients",[
-          {key:"ingredient_name",label:"Ingredient"},
-          {key:"total_oz",label:"Total oz",align:"right",format:v=>fmt(v,0)},
-          {key:"edible_oz_per_case",label:"Edible oz/case",align:"right",format:v=>fmt(v,0)},
-          {key:"cases_exact",label:"Cases (exact)",align:"right",format:v=>fmt(v,3)},
-          {key:"cases_rounded",label:"Cases (rounded)",align:"right",format:v=>fmt(v,0)}
-        ], ingRows, 250);
-
-        renderTable("tab-undefined",[
-          {key:"upc",label:"GTIN"},
-          {key:"units",label:"Units sold",align:"right",format:v=>fmt(v,0)},
-          {key:"reason",label:"Why missing"}
-        ], undefinedItems, 80);
-
-        runNote.innerHTML = `<span class="ok">Computed successfully.</span>`;
-        downloadBtn.disabled = ingRows.length===0;
-
-      }catch(err){
-        console.error(err);
-        runNote.innerHTML = `<span class="err">Failed to read sales file: ${String(err.message||err)}</span>`;
-      }
-    }
-
-    runBtn.addEventListener("click", runReport);
-
-    downloadBtn.addEventListener("click", ()=>{
-      if(!lastIngredientRows || lastIngredientRows.length===0){
-        runNote.textContent = "Run a report first, then download CSV.";
-        return;
-      }
-      const header = ["ingredient_name","total_oz","edible_oz_per_case","cases_exact","cases_rounded"];
-      const lines = [header.join(",")];
-      for(const r of lastIngredientRows){
-        const row = [
-          `"${String(r.ingredient_name).replaceAll('"','""')}"`,
-          r.total_oz,
-          r.edible_oz_per_case ?? "",
-          r.cases_exact ?? "",
-          r.cases_rounded ?? ""
-        ];
-        lines.push(row.join(","));
-      }
-      downloadText("ingredient_cases_used.csv", lines.join("\n"));
-    });
-
-    salesInput.addEventListener("change", () => {
-      const file = salesInput.files?.[0];
-      if(file) runNote.textContent = `Selected: ${file.name}. Click “Run report”.`;
-    });
-  </script>
 </body>
 </html>
