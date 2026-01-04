@@ -281,15 +281,16 @@
   // Initialize master immediately
   master = buildMaster(MASTER.Items, MASTER.Recipes, MASTER.Ingredients);
 
-  document.getElementById("salesFile").addEventListener("change", async (e)=>{
-    const file=e.target.files?.[0]; if(!file) return;
-    const buf=await file.arrayBuffer();
-    salesWB=XLSX.read(buf,{type:"array"});
-    runNote.textContent=`Loaded sales file: ${file.name}. Click “Run report”.`;
+  const salesInput = document.getElementById("salesFile");
+
+  salesInput.addEventListener("change", ()=>{
+    const file = salesInput.files?.[0];
+    if(!file) return;
+    runNote.textContent = `Selected: ${file.name}. Click “Run report”.`;
   });
 
-  function run(){
-    if(!salesWB){ runNote.textContent="Upload a sales report first."; return; }
+  function runReportUsingSalesWorkbook(){
+    if(!salesWB){ runNote.textContent="Could not read the sales file. Re-select it and try again."; return; }
 
     const sh = salesWB.SheetNames[0];
     const sales = XLSX.utils.sheet_to_json(salesWB.Sheets[sh], {defval:""});
@@ -417,7 +418,18 @@
       : "Computed results successfully.";
   }
 
-  document.getElementById("runBtn").addEventListener("click", run);
+  document.getElementById("runBtn").addEventListener("click", async ()=>{
+    const file = salesInput.files?.[0];
+    if(!file){ runNote.textContent="Upload a sales report first."; return; }
+    try{
+      const buf = await file.arrayBuffer();
+      salesWB = XLSX.read(buf,{type:"array"});
+      runReportUsingSalesWorkbook();
+    }catch(err){
+      console.error(err);
+      runNote.textContent = `Failed to read sales file: ${err?.message || err}`;
+    }
+  });
 
   document.getElementById("downloadCsv").addEventListener("click", ()=>{
     if(!lastIngredientRows || lastIngredientRows.length===0){ runNote.textContent="Run a report first, then download CSV."; return; }
